@@ -1,0 +1,41 @@
+Network Streaming data Sharing Manager Readme
+
+* プログラム
+- SSM
+ - ssm-coordinator     Sensor Shairing Manager
+ - lsssm               登録されているセンサ情報のリスト表示
+ - ssm-logger          ログ取り
+ - ssm-advance-player  ログ再生
+ - ssm-monitor         書き込み状況表示
+ - ssm-graph           ssmの接続状態のdotファイル吐き出し
+ - ssm-transporter     ２台のPCでのSSMの同期
+ - ssm-date            SSM時刻管理
+
+- DSSM
+ - ssm-proxy           coordinatorにネットワークを介して受け取ったデータを渡す
+ - ssm-proxy-client    センサハンドラのデータをproxyに送信する
+
+* 起動方法
+1, src/ssm-coordinatorを起動
+2, utility/ssm-proxyを起動
+3, ユーザプログラムを起動
+
+* サンプルプログラム
+DSSMのサンプルは utility/read_proxy_sample と utility/write_proxy_sample です.
+
+* トラブルシューティング
+1. autotool関連のエラーがでる
+ $ autoreconf -i -f
+を実行すると治るかもしれません.
+
+--install（-i）
+パッケージ化に足りないファイルを自動的に生成。
+--force（-f）
+既存のファイルを置き換える。デフォルトでは既存のファイルを上書きしない。
+
+2. リンカがエラーを吐く
+32bitOSを使用しているときは, utility/Makefile.amのAM_CFLAGSに-L/lib64 -lpthreadを追加してください.
+
+3. メッセージをcoordinatorに送ろうとするとメモリ二重解放エラーが出る
+branchを32-64bitに切り替えて, 再度makeして実行してください.
+masterブランチは同じbitのOS間での通信にしか対応していません.
