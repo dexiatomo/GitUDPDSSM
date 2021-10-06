@@ -83,6 +83,7 @@ public:
 	bool recvTMsg(thrd_msg *tmsg);
 
 	bool connectToDataServer(const char* serverName, int port);
+	bool UDPconnectToDataServer(const char* serverName, int port);
 
 	bool isOpen();
 	void* getData();

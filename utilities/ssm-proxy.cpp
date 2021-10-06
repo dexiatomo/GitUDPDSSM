@@ -172,11 +172,13 @@ void DataCommunicator::UDPhandleData() {
 	// char *p;
 	ssmTimeT time;
 	while (true) {
+		fprintf(stderr, "UDPhandleData::Start\n");
 		if (!UDPreceiveData()) {
-			fprintf(stderr, "receiveData Error happends\n");
+			fprintf(stderr, "UDPreceiveData Error happends\n");
 			break;
 		}
 		// p = &mData[8];
+		fprintf(stderr, "receiveData Ended::\n");
 		time = *(reinterpret_cast<ssmTimeT*>(mData));
 		pstream->write(time);
 #ifdef DEBUG
@@ -430,7 +432,7 @@ bool DataCommunicator::sopen() {
 }
 
 bool DataCommunicator::UDPsopen() {
-	fprintf(stderr, "DataCommunnicator::sopen start\n");
+	fprintf(stderr, "DataCommunnicator::UDPsopen start\n");
 	this->udpserver.data_socket = socket(AF_INET, SOCK_DGRAM,0);
 
 	if (this->udpserver.data_socket == -1) {
@@ -441,7 +443,7 @@ bool DataCommunicator::UDPsopen() {
 	//debug
 	char *s = inet_ntoa(udpserver.server_addr.sin_addr);
 	uint16_t debugport = htons(udpserver.server_addr.sin_port);
-	fprintf(stderr, "DataCommunicator::sopen binding to IP address: %s, %d\n",s, debugport);
+	fprintf(stderr, "DataCommunicator::UDPsopen binding to IP address: %s, %d\n",s, debugport);
 	//debug end
 	if (bind(this->udpserver.data_socket,
 			(struct sockaddr*) &this->udpserver.server_addr,
@@ -449,6 +451,7 @@ bool DataCommunicator::UDPsopen() {
 		perror("data com bind");
 		return false;
 	}
+	fprintf(stderr, "DataCommunnicator::UDPsopen end. binded.\n");
 	return true;
 }
 
@@ -550,6 +553,7 @@ bool ProxyServer::open() {
 }
 
 bool ProxyServer::wait() {
+	fprintf(stderr, "hwait::Start\n");
 	memset(&this->client, 0, sizeof(this->client));
 	this->client.data_socket = -1;
 	for (;;) {
@@ -564,6 +568,7 @@ bool ProxyServer::wait() {
 		return false;
 	}
 	return true;
+	fprintf(stderr, "hwait::End\n");
 }
 
 bool ProxyServer::server_close() {

@@ -308,7 +308,7 @@ bool PConnector::connectToServer(const char* serverName, int port) {
 	server.sin_port = htons(port);
 	server.sin_addr.s_addr = inet_addr(serverName);
 	if (connect(sock, (struct sockaddr *) &server, sizeof(server))) {
-		fprintf(stderr, "connection error\n");
+		fprintf(stderr, "connectToServer:connection error\n");
 		return false;
 	}
 	return true;
@@ -327,11 +327,29 @@ bool PConnector::connectToDataServer(const char* serverName, int port) {
 	dserver.sin_port = htons(port);
 	dserver.sin_addr.s_addr = inet_addr(serverName);
 	if (connect(dsock, (struct sockaddr *) &dserver, sizeof(dserver))) {
-		fprintf(stderr, "connection error\n");
+		fprintf(stderr, "connectToDataServer:connection error\n");
 		return false;
 	}
 	return true;
 }
+
+bool PConnector::UDPconnectToDataServer(const char* serverName, int port) {
+	fprintf(stderr, "in UDPconnectToDataServer\n");
+	dsock = socket(AF_INET, SOCK_DGRAM, 0);
+	int flag = 1;
+
+	dserver.sin_family = AF_INET;
+	dserver.sin_port = htons(port);
+	dserver.sin_addr.s_addr = inet_addr(serverName);
+	//connect test UDPではコネクトするとこの接続先にデフォルトされるはず
+	if (connect(dsock, (struct sockaddr *) &dserver, sizeof(dserver))) {
+		fprintf(stderr, "connection error\n");
+		return false;
+	}
+	fprintf(stderr, "out UDPconnectToDataServer\n");
+	return true;
+}
+
 
 bool PConnector::initRemote() {
 	bool r = true;
@@ -466,16 +484,19 @@ bool PConnector::readTime(ssmTimeT t) {
 }
 
 bool PConnector::read(SSM_tid tmid, READ_packet_type type) {
+	fprintf(stderr, "Inside readC\n");
 	thrd_msg tmsg;
 	memset((char*)&tmsg, 0, sizeof(thrd_msg));
 	tmsg.msg_type = type;
 	tmsg.tid = tmid;
-
+	fprintf(stderr, "Before sendTMsg\n");
 	if (!sendTMsg(&tmsg)) {
 		return false;
 	}
+	fprintf(stderr, "After sendTMsg\n");
 	if (recvTMsg(&tmsg)) {
 		if (tmsg.res_type == TMC_RES) {
+			fprintf(stderr, "After recvTMsg\n");
 			if (recvData()) {
 				time = tmsg.time;
 				timeId = tmsg.tid;
@@ -483,15 +504,18 @@ bool PConnector::read(SSM_tid tmid, READ_packet_type type) {
 			}
 		}
 	}
+	fprintf(stderr, "Read Exit\n");
 	return false;
 }
 
 /* read ここまで　*/
 bool PConnector::recvData() {
+	fprintf(stderr, "Inside recvData\n");
 	int len = 0;
 	while ((len += recv(dsock, &((char*) mData)[len], mDataSize - len, 0))
 			!= mDataSize)
 		;
+	fprintf(stderr, "Outside recvData\n");
 	return true;
 }
 
@@ -826,9 +850,8 @@ bool PConnector::createDataCon() {
 //            fprintf(stderr, "create data connection error\n");
 	}
 	free(msg_buf);
-
-	connectToDataServer(ipaddr, msg.suid);
-
+	//TAKUTO CHANGE
+	UDPconnectToDataServer(ipaddr, msg.suid);
 	return true;
 }
 
