@@ -500,7 +500,7 @@ ssmTimeT PConnector::getRealTime() {
 	gettimeofday(&current, NULL);
 	return current.tv_sec + current.tv_sec / 1000000.0;
 }
-
+//送信
 bool PConnector::write(ssmTimeT time) {
 	*((ssmTimeT*) mFullData) = time;
 	if (send(dsock, mFullData, mFullDataSize, 0) == -1) { // データ送信用経路を使う

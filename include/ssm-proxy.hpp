@@ -4,6 +4,7 @@
 #include "ssm.hpp"
 
 void test();
+bool isTCP = false;
 
 #define SERVER_PORT     8080            /* サーバ用PORT */
 #define SERVER_IP       0x00000000UL    /* サーバ用待ち受けIP */
@@ -22,6 +23,10 @@ typedef struct {
     struct sockaddr_in  client_addr;    /* クライアントのアドレス */
 } TCPCLIENT_INFO;
 
+typedef struct {
+    int                 data_socket;    /* クライアントとの通信用ソケット */
+    struct sockaddr_in  server_addr;    /* クライアントのアドレス */
+} UDPSERVER_INFO;
 
 #include "Thread.hpp"
 
@@ -31,6 +36,7 @@ class DataCommunicator : public Thread {
 private:
 	TCPSERVER_INFO server;
 	TCPCLIENT_INFO client;
+	UDPSERVER_INFO udpserver;
 
 	char* mData;
 	uint64_t mDataSize;
@@ -45,18 +51,31 @@ private:
   ProxyServer* proxy;
 
 	bool sopen();
+	bool UDPsopen();
 	bool rwait();
+	bool UDPrwait();
 	bool sclose();
         
   bool receiveTMsg(thrd_msg *tmsg);
+  bool UDPreceiveTMsg(thrd_msg *tmsg);
+
   bool deserializeTmsg(thrd_msg *tmsg);
   bool serializeTmsg(thrd_msg *tmsg);
+
   bool sendTMsg(thrd_msg *tmsg);
+  bool UDPsendTMsg(thrd_msg *tmsg);
+
   bool sendBulkData(char* buf, uint64_t size);
+  bool UDPsendBulkData(char* buf, uint64_t size);
         
   void handleData();
+  void UDPhandleData();
+  
   void handleRead();
-	bool receiveData();                        
+  void UDPhandleRead();
+
+  bool receiveData();    
+  bool UDPreceiveData();                    
         
 public:
 	DataCommunicator() = delete;

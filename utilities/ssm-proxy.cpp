@@ -53,8 +53,18 @@ DataCommunicator::DataCommunicator(uint16_t nport, char* mData, uint64_t d_size,
 	this->server.server_addr.sin_addr.s_addr = htonl(SERVER_IP);
 	this->server.server_addr.sin_port = htons(nport);
 
-	if (!this->sopen()) {
-		perror("errororor\n");
+	this->udpserver.data_socket = -1;
+	this->udpserver.server_addr.sin_family = AF_INET;
+	this->udpserver.server_addr.sin_addr.s_addr = htonl(SERVER_IP);
+	this->udpserver.server_addr.sin_port = htons(nport);
+	if(isTCP){
+		if (!this->sopen()) {
+			perror("errororor\n");
+		}
+	}else{
+		if (!this->UDPsopen()) {
+			perror("errororor\n");
+		}
 	}
 }
 
@@ -63,12 +73,19 @@ DataCommunicator::~DataCommunicator() {
 	if (this->buf)
 		free(this->buf);
 }
-
+//受信
 bool DataCommunicator::receiveData() {
 	int len = 0;
 	while ((len += recv(this->client.data_socket, &mData[len],
 			mFullDataSize - len, 0)) != mFullDataSize)
 		;
+	return true;
+}
+
+bool DataCommunicator::UDPreceiveData() {
+	fprintf(stderr, "before recv\n");
+	recvfrom(this->udpserver.data_socket,mData,mFullDataSize,0, (struct sockaddr*) &udpserver.server_addr,(socklen_t*) sizeof(udpserver.server_addr));
+	fprintf(stderr, "after recv %s\n", mData);
 	return true;
 }
 
@@ -102,6 +119,17 @@ bool DataCommunicator::sendTMsg(thrd_msg *tmsg) {
 	return false;
 }
 
+bool DataCommunicator::UDPsendTMsg(thrd_msg *tmsg) {
+	if (serializeTmsg(tmsg)) {
+		if (sendto(this->udpserver.data_socket, this->buf, this->thrdMsgLen, 0, 
+		(struct sockaddr*) &udpserver.server_addr,(socklen_t) sizeof(udpserver.server_addr))!=0)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 bool DataCommunicator::receiveTMsg(thrd_msg *tmsg) {
 	int len;
 	if ((len = recv(this->client.data_socket, this->buf, this->thrdMsgLen, 0))
@@ -110,6 +138,13 @@ bool DataCommunicator::receiveTMsg(thrd_msg *tmsg) {
 	}
 	
 	return false;
+}
+
+bool DataCommunicator::UDPreceiveTMsg(thrd_msg *tmsg) {
+	fprintf(stderr, "before UDPrecvTMsg\n");
+	recvfrom(this->udpserver.data_socket,this->buf,this->thrdMsgLen,0, (struct sockaddr*) &udpserver.server_addr,(socklen_t*) sizeof(udpserver.server_addr));
+	fprintf(stderr, "after UDPrecvTMsg %s\n");
+	return deserializeTmsg(tmsg);
 }
 
 void DataCommunicator::handleData() {
@@ -133,11 +168,41 @@ void DataCommunicator::handleData() {
 	// pstream->showRawData();
 }
 
+void DataCommunicator::UDPhandleData() {
+	// char *p;
+	ssmTimeT time;
+	while (true) {
+		if (!UDPreceiveData()) {
+			fprintf(stderr, "receiveData Error happends\n");
+			break;
+		}
+		// p = &mData[8];
+		time = *(reinterpret_cast<ssmTimeT*>(mData));
+		pstream->write(time);
+#ifdef DEBUG
+	// std::cout << "tid " << this->pstream->timeId << "\n";
+	// dssm::util::hexdump(&mData[sizeof(ssmTimeT)], mDataSize);
+	// std::cout << std::endl;
+#endif
+	}
+	// pstream->showRawData();
+}
+
 bool DataCommunicator::sendBulkData(char* buf, uint64_t size) {
 #ifdef DEBUG
 	// dssm::util::hexdump(buf, size);
 #endif
 	if (send(this->client.data_socket, buf, size, 0) != -1) {
+		return true;
+	}
+	return false;
+}
+
+bool DataCommunicator::UDPsendBulkData(char* buf, uint64_t size) {
+#ifdef DEBUG
+	// dssm::util::hexdump(buf, size);
+#endif
+	if (sendto(this->udpserver.data_socket, buf, size, 0,(struct sockaddr*) &udpserver.server_addr,(socklen_t) sizeof(udpserver.server_addr)) != -1) {
 		return true;
 	}
 	return false;
@@ -221,23 +286,121 @@ void DataCommunicator::handleRead() {
 	}
 }
 
+void DataCommunicator::UDPhandleRead() {
+	thrd_msg tmsg;
+
+	while (true) {
+		if (UDPreceiveTMsg(&tmsg)) {
+			switch (tmsg.msg_type) {
+				case TID_REQ: {
+					tmsg.tid = getTID(pstream->getSSMId(), tmsg.time);
+					tmsg.res_type = TMC_RES;
+					UDPsendTMsg(&tmsg);
+					break;
+				}
+				case TOP_TID_REQ: {
+					tmsg.tid = getTID_top(pstream->getSSMId());
+					tmsg.res_type = TMC_RES;
+					UDPsendTMsg(&tmsg);
+					break;
+				}
+				case BOTTOM_TID_REQ: {
+					tmsg.tid = getTID_bottom(pstream->getSSMId());
+					tmsg.res_type = TMC_RES;
+					UDPsendTMsg(&tmsg);
+					break;
+				}
+				case READ_NEXT: {
+					int dt = tmsg.tid;
+					pstream->readNext(dt);
+					tmsg.tid = pstream->timeId;
+					tmsg.time = pstream->time;
+					tmsg.res_type = TMC_RES;
+					if (UDPsendTMsg(&tmsg)) {
+						if (!UDPsendBulkData(&mData[sizeof(ssmTimeT)], mDataSize)) {
+							perror("send bulk Error");
+						}
+					}
+					break;
+				}
+				case TIME_ID: {
+					SSM_tid req_tid = (SSM_tid) tmsg.tid;
+					if (!pstream->read(req_tid)) {
+						fprintf(stderr, "[%s] SSMApi::read error.\n", pstream->getStreamName());
+					}
+					tmsg.tid = pstream->timeId;
+					tmsg.time = pstream->time;
+					tmsg.res_type = TMC_RES;
+					if (UDPsendTMsg(&tmsg)) {
+						if (!UDPsendBulkData(&mData[sizeof(ssmTimeT)], mDataSize)) {
+							perror("send bulk Error");
+						}
+					}
+					break;
+				}
+				case REAL_TIME: {
+					ssmTimeT t = tmsg.time;
+					if (!pstream->readTime(t)) {
+						fprintf(stderr, "[%s] SSMApi::readTime error.\n", pstream->getStreamName());
+					}
+					tmsg.tid = pstream->timeId;
+					tmsg.time = pstream->time;
+					tmsg.res_type = TMC_RES;
+					if (UDPsendTMsg(&tmsg)) {
+					  if (!UDPsendBulkData(&mData[sizeof(ssmTimeT)], mDataSize)) {
+					    perror("send bulk Error");
+					  }
+					}
+					break;
+				}
+				default: {
+					//thrd_msg* ptr = &tmsg;                                        
+					break;
+				}
+			}
+		} else {
+			break;
+		}
+	}
+}
+
 void* DataCommunicator::run(void* args) {
-	if (rwait()) {
-		switch (mType) {
-			case WRITE_MODE: {
-				handleData();
-				break;
+	if(isTCP){
+		if (rwait()) {
+			switch (mType) {
+				case WRITE_MODE: {
+					handleData();
+					break;
+				}
+				case READ_MODE: {
+					handleRead();
+					break;
+				}
+				default: {
+					perror("no such mode");
+				}
 			}
-			case READ_MODE: {
-				handleRead();
-				break;
-			}
-			default: {
-				perror("no such mode");
+		}
+		return nullptr;
+	}
+	else{
+		if (UDPrwait()) {
+			switch (mType) {
+				case WRITE_MODE: {
+					UDPhandleData();
+					break;
+				}
+				case READ_MODE: {
+					UDPhandleRead();
+					break;
+				}
+				default: {
+					perror("no such mode");
 			}
 		}
 	}
 	return nullptr;
+	}
 }
 
 bool DataCommunicator::sopen() {
@@ -266,6 +429,29 @@ bool DataCommunicator::sopen() {
 	return true;
 }
 
+bool DataCommunicator::UDPsopen() {
+	fprintf(stderr, "DataCommunnicator::sopen start\n");
+	this->udpserver.data_socket = socket(AF_INET, SOCK_DGRAM,0);
+
+	if (this->udpserver.data_socket == -1) {
+		perror("open socket error");
+		return false;
+	}
+	//bindでポートが紐づけられる
+	//debug
+	char *s = inet_ntoa(udpserver.server_addr.sin_addr);
+	uint16_t debugport = htons(udpserver.server_addr.sin_port);
+	fprintf(stderr, "DataCommunicator::sopen binding to IP address: %s, %d\n",s, debugport);
+	//debug end
+	if (bind(this->udpserver.data_socket,
+			(struct sockaddr*) &this->udpserver.server_addr,
+			sizeof(this->udpserver.server_addr)) == -1) {
+		perror("data com bind");
+		return false;
+	}
+	return true;
+}
+
 bool DataCommunicator::sclose() {
 	if (this->client.data_socket != -1) {
 		close(this->client.data_socket);
@@ -274,6 +460,10 @@ bool DataCommunicator::sclose() {
 	if (this->server.wait_socket != -1) {
 		close(this->server.wait_socket);
 		this->server.wait_socket = -1;
+	}
+	if (this->udpserver.data_socket != -1) {
+		close(this->udpserver.data_socket);
+		this->udpserver.data_socket = -1;
 	}
 
 	return true;
@@ -294,6 +484,10 @@ bool DataCommunicator::rwait() {
 		return false;
 	}
 	return true;
+}
+
+bool DataCommunicator::UDPrwait() {
+	fprintf(stderr, "rwait skip\n");
 }
 
 ProxyServer::ProxyServer() {
