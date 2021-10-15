@@ -32,6 +32,7 @@
 #define DEBUG 0
 
 extern pid_t my_pid; // for debug
+socklen_t address_len = sizeof(struct sockaddr_in);
 DataCommunicator::DataCommunicator(uint16_t nport, char* mData, uint64_t d_size,
 		uint64_t t_size, SSMApiBase *pstream, PROXY_open_mode type,
 		ProxyServer* proxy) {
@@ -55,8 +56,10 @@ DataCommunicator::DataCommunicator(uint16_t nport, char* mData, uint64_t d_size,
 
 	this->udpserver.data_socket = -1;
 	this->udpserver.server_addr.sin_family = AF_INET;
-	this->udpserver.server_addr.sin_addr.s_addr = htonl(SERVER_IP);
+	this->udpserver.server_addr.sin_addr.s_addr = INADDR_ANY;
 	this->udpserver.server_addr.sin_port = htons(nport);
+	this->udpserver.okuru_addr;
+	
 	if(isTCP){
 		if (!this->sopen()) {
 			perror("errororor\n");
@@ -83,9 +86,8 @@ bool DataCommunicator::receiveData() {
 }
 
 bool DataCommunicator::UDPreceiveData() {
-	fprintf(stderr, "before recv\n");
-	recvfrom(this->udpserver.data_socket,mData,mFullDataSize,0, (struct sockaddr*) &udpserver.server_addr,(socklen_t*) sizeof(udpserver.server_addr));
-	fprintf(stderr, "after recv %s\n", mData);
+	//recvfrom(this->udpserver.data_socket,mData,mFullDataSize,0, (struct sockaddr*) &udpserver.okuru_addr,(socklen_t*) sizeof(udpserver.okuru_addr));
+	recv(this->udpserver.data_socket,mData,mFullDataSize,0);
 	return true;
 }
 
@@ -120,13 +122,16 @@ bool DataCommunicator::sendTMsg(thrd_msg *tmsg) {
 }
 
 bool DataCommunicator::UDPsendTMsg(thrd_msg *tmsg) {
+	printf("Inside UDPsendTMsg\n");
 	if (serializeTmsg(tmsg)) {
 		if (sendto(this->udpserver.data_socket, this->buf, this->thrdMsgLen, 0, 
-		(struct sockaddr*) &udpserver.server_addr,(socklen_t) sizeof(udpserver.server_addr))!=0)
+		(struct sockaddr*) &udpserver.okuru_addr,address_len)!=0)
 		{
+			printf("Outside UDPsendTMsg True\n");
 			return true;
 		}
 	}
+	printf("Outside UDPsendTMsg False\n");
 	return false;
 }
 
@@ -141,21 +146,22 @@ bool DataCommunicator::receiveTMsg(thrd_msg *tmsg) {
 }
 
 bool DataCommunicator::UDPreceiveTMsg(thrd_msg *tmsg) {
-	fprintf(stderr, "before UDPrecvTMsg\n");
-	recvfrom(this->udpserver.data_socket,this->buf,this->thrdMsgLen,0, (struct sockaddr*) &udpserver.server_addr,(socklen_t*) sizeof(udpserver.server_addr));
-	fprintf(stderr, "after UDPrecvTMsg %s\n");
+	fprintf(stderr, "Inside UDPrecvTMsg\n");
+	int n = recvfrom(this->udpserver.data_socket,this->buf,this->thrdMsgLen,0,
+	 (struct sockaddr *) &this->udpserver.okuru_addr,&address_len);
+	fprintf(stderr, "Outside UDPrecvTMsg n = %d\n", n);
 	return deserializeTmsg(tmsg);
 }
 
 void DataCommunicator::handleData() {
-	// char *p;
+	 char *p;
 	ssmTimeT time;
 	while (true) {
 		if (!receiveData()) {
 			fprintf(stderr, "receiveData Error happends\n");
 			break;
 		}
-		// p = &mData[8];
+		 p = &mData[8];
 
 		time = *(reinterpret_cast<ssmTimeT*>(mData));
 		pstream->write(time);
@@ -169,16 +175,12 @@ void DataCommunicator::handleData() {
 }
 
 void DataCommunicator::UDPhandleData() {
-	// char *p;
 	ssmTimeT time;
 	while (true) {
-		fprintf(stderr, "UDPhandleData::Start\n");
 		if (!UDPreceiveData()) {
 			fprintf(stderr, "UDPreceiveData Error happends\n");
 			break;
 		}
-		// p = &mData[8];
-		fprintf(stderr, "receiveData Ended::\n");
 		time = *(reinterpret_cast<ssmTimeT*>(mData));
 		pstream->write(time);
 #ifdef DEBUG
@@ -194,6 +196,7 @@ bool DataCommunicator::sendBulkData(char* buf, uint64_t size) {
 #ifdef DEBUG
 	// dssm::util::hexdump(buf, size);
 #endif
+	dssm::util::hexdump(buf, size);
 	if (send(this->client.data_socket, buf, size, 0) != -1) {
 		return true;
 	}
@@ -204,15 +207,21 @@ bool DataCommunicator::UDPsendBulkData(char* buf, uint64_t size) {
 #ifdef DEBUG
 	// dssm::util::hexdump(buf, size);
 #endif
-	if (sendto(this->udpserver.data_socket, buf, size, 0,(struct sockaddr*) &udpserver.server_addr,(socklen_t) sizeof(udpserver.server_addr)) != -1) {
+	printf("Inside UDPsendBulkData\n");
+	printf("hexdump : ");
+	dssm::util::hexdump(buf, size);
+	printf("\n");
+	if (sendto(this->udpserver.data_socket, buf, size, 0,(struct sockaddr*) &udpserver.okuru_addr,address_len) != -1) {
+		printf("Outside UDPsendBulkData True\n");
 		return true;
 	}
+	printf("Outside UDPsendBulkData False\n");
 	return false;
 }
 
 void DataCommunicator::handleRead() {
 	thrd_msg tmsg;
-
+	printf("handleRead\n");
 	while (true) {
 		if (receiveTMsg(&tmsg)) {
 			switch (tmsg.msg_type) {
@@ -290,7 +299,7 @@ void DataCommunicator::handleRead() {
 
 void DataCommunicator::UDPhandleRead() {
 	thrd_msg tmsg;
-
+	fprintf(stderr, "======Inside UDPhandleRead=====\n");
 	while (true) {
 		if (UDPreceiveTMsg(&tmsg)) {
 			switch (tmsg.msg_type) {
@@ -326,6 +335,7 @@ void DataCommunicator::UDPhandleRead() {
 					break;
 				}
 				case TIME_ID: {
+					
 					SSM_tid req_tid = (SSM_tid) tmsg.tid;
 					if (!pstream->read(req_tid)) {
 						fprintf(stderr, "[%s] SSMApi::read error.\n", pstream->getStreamName());
@@ -432,7 +442,7 @@ bool DataCommunicator::sopen() {
 }
 
 bool DataCommunicator::UDPsopen() {
-	fprintf(stderr, "DataCommunnicator::UDPsopen start\n");
+	fprintf(stderr, "DataCommunicator::UDPsopen start\n");
 	this->udpserver.data_socket = socket(AF_INET, SOCK_DGRAM,0);
 
 	if (this->udpserver.data_socket == -1) {
@@ -443,7 +453,7 @@ bool DataCommunicator::UDPsopen() {
 	//debug
 	char *s = inet_ntoa(udpserver.server_addr.sin_addr);
 	uint16_t debugport = htons(udpserver.server_addr.sin_port);
-	fprintf(stderr, "DataCommunicator::UDPsopen binding to IP address: %s, %d\n",s, debugport);
+	fprintf(stderr, "DataCommunicator::UDPsopen. binding datasocket to IP address: %s, %d\n",s, debugport);
 	//debug end
 	if (bind(this->udpserver.data_socket,
 			(struct sockaddr*) &this->udpserver.server_addr,
@@ -490,7 +500,8 @@ bool DataCommunicator::rwait() {
 }
 
 bool DataCommunicator::UDPrwait() {
-	fprintf(stderr, "rwait skip\n");
+	fprintf(stderr, "UDPrwait skip\n");
+	return true;
 }
 
 ProxyServer::ProxyServer() {

@@ -25,6 +25,7 @@ typedef struct {
 
 typedef struct {
     int                 data_socket;    /* クライアントとの通信用ソケット */
+	struct sockaddr_in  okuru_addr;
     struct sockaddr_in  server_addr;    /* クライアントのアドレス */
 } UDPSERVER_INFO;
 

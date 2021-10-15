@@ -217,23 +217,32 @@ SSM_tid PConnector::getTID_top(SSM_sid sid) {
 SSM_tid PConnector::getTID_bottom(SSM_sid sid) {
 	return timeId = getTID_bottom();
 }
-
+//TAKUTO CHANGE
 bool PConnector::sendTMsg(thrd_msg *tmsg) {
+	printf("Inside sendTMsg\n");
 	char *p = tbuf;
 	serializeTMessage(tmsg, &p);
+	printf("Before Sleep\n");
+	//sleep(5);
+	printf("After Sleep\n");
 	if (send(dsock, tbuf, thrdMsgLen, 0) == -1) {
 		perror("socket error");
 		return false;
 	}
+	printf("Outside sendTMsg\n");
 	return true;
 }
 
 bool PConnector::recvTMsg(thrd_msg *tmsg) {
+	printf("Inside recvTMsg\n");
 	int len = recv(dsock, tbuf, thrdMsgLen, 0);
 	if (len == thrdMsgLen) {
+		fprintf(stderr, "len == thrdMsgLen\n");
 		char* p = tbuf;
+		printf("Outside recvTMsg True\n");
 		return deserializeTMessage(tmsg, &p);
 	}
+	printf("Outside sendTMsg False\n");
 	return false;
 }
 
@@ -333,8 +342,9 @@ bool PConnector::connectToDataServer(const char* serverName, int port) {
 	return true;
 }
 
+//問題ないように思える
 bool PConnector::UDPconnectToDataServer(const char* serverName, int port) {
-	fprintf(stderr, "in UDPconnectToDataServer\n");
+	fprintf(stderr, "In UDPconnectToDataServer\n");
 	dsock = socket(AF_INET, SOCK_DGRAM, 0);
 	int flag = 1;
 
@@ -342,6 +352,7 @@ bool PConnector::UDPconnectToDataServer(const char* serverName, int port) {
 	dserver.sin_port = htons(port);
 	dserver.sin_addr.s_addr = inet_addr(serverName);
 	//connect test UDPではコネクトするとこの接続先にデフォルトされるはず
+	fprintf(stderr, "Connecting to %s: %d\n", serverName, port);
 	if (connect(dsock, (struct sockaddr *) &dserver, sizeof(dserver))) {
 		fprintf(stderr, "connection error\n");
 		return false;
@@ -367,7 +378,7 @@ bool PConnector::initRemote() {
 	} else {
 		fprintf(stderr, "fail recvMsg\n");
 		r = false;
-	}
+	} 
 	free(msg_buf);
 	return r;
 }
@@ -484,19 +495,16 @@ bool PConnector::readTime(ssmTimeT t) {
 }
 
 bool PConnector::read(SSM_tid tmid, READ_packet_type type) {
-	fprintf(stderr, "Inside readC\n");
+	fprintf(stderr, "Inside read\n");
 	thrd_msg tmsg;
 	memset((char*)&tmsg, 0, sizeof(thrd_msg));
 	tmsg.msg_type = type;
 	tmsg.tid = tmid;
-	fprintf(stderr, "Before sendTMsg\n");
 	if (!sendTMsg(&tmsg)) {
 		return false;
 	}
-	fprintf(stderr, "After sendTMsg\n");
 	if (recvTMsg(&tmsg)) {
 		if (tmsg.res_type == TMC_RES) {
-			fprintf(stderr, "After recvTMsg\n");
 			if (recvData()) {
 				time = tmsg.time;
 				timeId = tmsg.tid;

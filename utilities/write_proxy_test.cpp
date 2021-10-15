@@ -71,11 +71,11 @@ int main(int aArgc, char **aArgv) {
 	setSigInt();
 
 	// 書き込む変数
-	int cnt = 0x02689268;
+	int cnt = 0;
 	// 1秒に1回インクリメント
 	while (!gShutOff) {
 	  // con.wdata->データ型 で書き込み
-	  
+	  	cnt+=1;
 		con.wdata->num = cnt;
 		printf("writing\n");
 		// 引数なしだと現在時刻を書き込み
@@ -83,7 +83,7 @@ int main(int aArgc, char **aArgv) {
 
 		// SSM時間に合わせたsleep...だが，speedを1以外に変更できないので引数がそのまま停止時間になる
 		sleepSSM(1);
-			}
+		}
 
 	// coordinatorからの切断
 	con.terminate();
