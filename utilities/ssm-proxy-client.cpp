@@ -16,6 +16,8 @@
 #include "ssm-proxy-client-child.hpp"
 #include "dssm-utility.hpp"
 
+#include <chrono>
+using namespace std::chrono;
 #define FOR_DEBUG 0
 
 PConnector::PConnector() :
@@ -500,15 +502,20 @@ bool PConnector::read(SSM_tid tmid, READ_packet_type type) {
 	memset((char*)&tmsg, 0, sizeof(thrd_msg));
 	tmsg.msg_type = type;
 	tmsg.tid = tmid;
+	auto start = high_resolution_clock::now();
 	if (!sendTMsg(&tmsg)) {
 		return false;
 	}
 	if (recvTMsg(&tmsg)) {
 		if (tmsg.res_type == TMC_RES) {
 			if (recvData()) {
+				auto stop = high_resolution_clock::now();
+				auto duration = duration_cast<microseconds>(stop - start);
+				    std::cout << "Time taken by function: " << duration.count() << " microseconds" << std::endl;
 				time = tmsg.time;
 				timeId = tmsg.tid;
 				return true;
+
 			}
 		}
 	}
