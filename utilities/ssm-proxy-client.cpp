@@ -221,30 +221,21 @@ SSM_tid PConnector::getTID_bottom(SSM_sid sid) {
 }
 //TAKUTO CHANGE
 bool PConnector::sendTMsg(thrd_msg *tmsg) {
-	printf("Inside sendTMsg\n");
 	char *p = tbuf;
 	serializeTMessage(tmsg, &p);
-	printf("Before Sleep\n");
-	//sleep(5);
-	printf("After Sleep\n");
 	if (send(dsock, tbuf, thrdMsgLen, 0) == -1) {
 		perror("socket error");
 		return false;
 	}
-	printf("Outside sendTMsg\n");
 	return true;
 }
 
 bool PConnector::recvTMsg(thrd_msg *tmsg) {
-	printf("Inside recvTMsg\n");
 	int len = recv(dsock, tbuf, thrdMsgLen, 0);
 	if (len == thrdMsgLen) {
-		fprintf(stderr, "len == thrdMsgLen\n");
 		char* p = tbuf;
-		printf("Outside recvTMsg True\n");
 		return deserializeTMessage(tmsg, &p);
 	}
-	printf("Outside sendTMsg False\n");
 	return false;
 }
 
@@ -344,7 +335,6 @@ bool PConnector::connectToDataServer(const char* serverName, int port) {
 	return true;
 }
 
-//問題ないように思える
 bool PConnector::UDPconnectToDataServer(const char* serverName, int port) {
 	fprintf(stderr, "In UDPconnectToDataServer\n");
 	dsock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -353,7 +343,6 @@ bool PConnector::UDPconnectToDataServer(const char* serverName, int port) {
 	dserver.sin_family = AF_INET;
 	dserver.sin_port = htons(port);
 	dserver.sin_addr.s_addr = inet_addr(serverName);
-	//connect test UDPではコネクトするとこの接続先にデフォルトされるはず
 	fprintf(stderr, "Connecting to %s: %d\n", serverName, port);
 	if (connect(dsock, (struct sockaddr *) &dserver, sizeof(dserver))) {
 		fprintf(stderr, "connection error\n");
@@ -497,7 +486,6 @@ bool PConnector::readTime(ssmTimeT t) {
 }
 
 bool PConnector::read(SSM_tid tmid, READ_packet_type type) {
-	fprintf(stderr, "Inside read\n");
 	thrd_msg tmsg;
 	memset((char*)&tmsg, 0, sizeof(thrd_msg));
 	tmsg.msg_type = type;
@@ -525,12 +513,13 @@ bool PConnector::read(SSM_tid tmid, READ_packet_type type) {
 
 /* read ここまで　*/
 bool PConnector::recvData() {
-	fprintf(stderr, "Inside recvData\n");
 	int len = 0;
+	len = recv(dsock, &((char*) mData)[len], mDataSize, 0);
+	/*
 	while ((len += recv(dsock, &((char*) mData)[len], mDataSize - len, 0))
 			!= mDataSize)
 		;
-	fprintf(stderr, "Outside recvData\n");
+		*/
 	return true;
 }
 
@@ -865,8 +854,8 @@ bool PConnector::createDataCon() {
 //            fprintf(stderr, "create data connection error\n");
 	}
 	free(msg_buf);
-	//TAKUTO CHANGE
 	UDPconnectToDataServer(ipaddr, msg.suid);
+	//connectToDataServer(ipaddr,msg.suid);
 	return true;
 }
 

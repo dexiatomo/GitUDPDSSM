@@ -122,16 +122,13 @@ bool DataCommunicator::sendTMsg(thrd_msg *tmsg) {
 }
 
 bool DataCommunicator::UDPsendTMsg(thrd_msg *tmsg) {
-	printf("Inside UDPsendTMsg\n");
 	if (serializeTmsg(tmsg)) {
 		if (sendto(this->udpserver.data_socket, this->buf, this->thrdMsgLen, 0, 
 		(struct sockaddr*) &udpserver.okuru_addr,address_len)!=0)
 		{
-			printf("Outside UDPsendTMsg True\n");
 			return true;
 		}
 	}
-	printf("Outside UDPsendTMsg False\n");
 	return false;
 }
 
@@ -196,7 +193,6 @@ bool DataCommunicator::sendBulkData(char* buf, uint64_t size) {
 #ifdef DEBUG
 	// dssm::util::hexdump(buf, size);
 #endif
-	dssm::util::hexdump(buf, size);
 	if (send(this->client.data_socket, buf, size, 0) != -1) {
 		return true;
 	}
@@ -207,15 +203,9 @@ bool DataCommunicator::UDPsendBulkData(char* buf, uint64_t size) {
 #ifdef DEBUG
 	// dssm::util::hexdump(buf, size);
 #endif
-	printf("Inside UDPsendBulkData\n");
-	printf("hexdump : ");
-	dssm::util::hexdump(buf, size);
-	printf("\n");
 	if (sendto(this->udpserver.data_socket, buf, size, 0,(struct sockaddr*) &udpserver.okuru_addr,address_len) != -1) {
-		printf("Outside UDPsendBulkData True\n");
 		return true;
 	}
-	printf("Outside UDPsendBulkData False\n");
 	return false;
 }
 
@@ -299,7 +289,6 @@ void DataCommunicator::handleRead() {
 
 void DataCommunicator::UDPhandleRead() {
 	thrd_msg tmsg;
-	fprintf(stderr, "======Inside UDPhandleRead=====\n");
 	while (true) {
 		if (UDPreceiveTMsg(&tmsg)) {
 			switch (tmsg.msg_type) {
