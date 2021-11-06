@@ -854,8 +854,8 @@ bool PConnector::createDataCon() {
 //            fprintf(stderr, "create data connection error\n");
 	}
 	free(msg_buf);
-	UDPconnectToDataServer(ipaddr, msg.suid);
-	//connectToDataServer(ipaddr,msg.suid);
+	//UDPconnectToDataServer(ipaddr, msg.suid);
+	connectToDataServer(ipaddr,msg.suid);
 	return true;
 }
 
