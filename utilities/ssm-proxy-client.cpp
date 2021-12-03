@@ -19,6 +19,7 @@
 #include <chrono>
 using namespace std::chrono;
 #define FOR_DEBUG 0
+bool isTCP = false;
 
 PConnector::PConnector() :
 		tbuf(nullptr), time(0.0), ipaddr("127.0.0.1") {
@@ -336,19 +337,18 @@ bool PConnector::connectToDataServer(const char* serverName, int port) {
 }
 
 bool PConnector::UDPconnectToDataServer(const char* serverName, int port) {
-	fprintf(stderr, "In UDPconnectToDataServer\n");
+	fprintf(stderr, "++UDPconnectToDataServer++\n");
 	dsock = socket(AF_INET, SOCK_DGRAM, 0);
 	int flag = 1;
-
 	dserver.sin_family = AF_INET;
 	dserver.sin_port = htons(port);
 	dserver.sin_addr.s_addr = inet_addr(serverName);
+
 	fprintf(stderr, "Connecting to %s: %d\n", serverName, port);
 	if (connect(dsock, (struct sockaddr *) &dserver, sizeof(dserver))) {
 		fprintf(stderr, "connection error\n");
 		return false;
 	}
-	fprintf(stderr, "out UDPconnectToDataServer\n");
 	return true;
 }
 
@@ -494,12 +494,18 @@ bool PConnector::read(SSM_tid tmid, READ_packet_type type) {
 	if (!sendTMsg(&tmsg)) {
 		return false;
 	}
+	auto mid1 = high_resolution_clock::now();
 	if (recvTMsg(&tmsg)) {
 		if (tmsg.res_type == TMC_RES) {
+			auto mid2 = high_resolution_clock::now();
 			if (recvData()) {
 				auto stop = high_resolution_clock::now();
-				auto duration = duration_cast<microseconds>(stop - start);
-				    std::cout << "Time taken by function: " << duration.count() << " microseconds" << std::endl;
+				auto duration3 = duration_cast<microseconds>(stop - mid2);
+				auto duration2 = duration_cast<microseconds>(mid2 - mid1);
+				auto duration1 = duration_cast<microseconds>(mid1 - start);
+				auto duration4 = duration_cast<microseconds>(stop - start);
+				std::cout << duration3.count() << " : " << duration2.count() << " : " << duration1.count() << std::endl;
+				std::cout << "Total Time : " << duration4.count() << std::endl;
 				time = tmsg.time;
 				timeId = tmsg.tid;
 				return true;
@@ -851,11 +857,14 @@ bool PConnector::createDataCon() {
 		fprintf(stderr, "error in createDataCon\n");
 	}
 	if (recvMsgFromServer(&msg, msg_buf)) {
-//            fprintf(stderr, "create data connection error\n");
+		//fprintf(stderr, "create data connection error\n");
 	}
 	free(msg_buf);
-	UDPconnectToDataServer(ipaddr, msg.suid);
-	//connectToDataServer(ipaddr,msg.suid);
+	if(isTCP){
+		connectToDataServer(ipaddr,msg.suid);
+	}else{
+		UDPconnectToDataServer(ipaddr, msg.suid);
+		}
 	return true;
 }
 

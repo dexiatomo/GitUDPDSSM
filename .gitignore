@@ -133,3 +133,7 @@ utilities/.libs/ssm-player
 utilities/.libs/ssm-proxy
 utilities/.libs/ssm-transporter
 utilities/.libs/write_proxy_test
+utilities/.libs/read_proxy_test
+utilities/.libs/ssm-player
+utilities/.libs/ssm-proxy
+utilities/.libs/write_proxy_test
