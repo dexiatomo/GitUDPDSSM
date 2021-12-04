@@ -869,18 +869,26 @@ bool PConnector::createDataCon() {
 		//fprintf(stderr, "create data connection error\n");
 	}
 	free(msg_buf);
+<<<<<<< HEAD
+	UDPconnectToDataServer(ipaddr, msg.suid);
+	//connectToDataServer(ipaddr,msg.suid);
+=======
 	if(isTCP){
 		connectToDataServer(ipaddr,msg.suid);
 <<<<<<< HEAD
 	}else{
 		UDPconnectToDataServer(ipaddr, msg.suid);
 		}
+<<<<<<< HEAD
 =======
 	}
 	else{
 		UDPconnectToDataServer(ipaddr, msg.suid);
 	}
 >>>>>>> 9b1bae87f1fc536ca96e49bf6a251a658213bb21
+=======
+>>>>>>> 8c8c6c5ecaad4d48fcef7b2a786947f0c88a530d
+>>>>>>> 317b64e3585a3f17e54df60dca1a7e894a1d5451
 	return true;
 }
 

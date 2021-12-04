@@ -42,8 +42,13 @@ int main() {
 	 * data型とproperty型は ./intSsm.h に定義
 	 * 指定しているIPはループバックアドレス(自分自身)
 	 */
+<<<<<<< HEAD
+	PConnectorClient<intSsm_k, doubleProperty_p> con(SNAME_INT, 1, "192.168.0.146");
+	//PConnectorClient<intSsm_k, doubleProperty_p> con(SNAME_INT, 1);
+=======
 	//PConnectorClient<intSsm_k, doubleProperty_p> con(SNAME_INT, 1, "192.168.1.246");
 	PConnectorClient<intSsm_k, doubleProperty_p> con(SNAME_INT, 1, "192.168.0.185");
+>>>>>>> 8c8c6c5ecaad4d48fcef7b2a786947f0c88a530d
 
 	// ssm関連の初期化
 	con.initSSM();
