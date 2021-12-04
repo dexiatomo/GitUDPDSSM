@@ -19,6 +19,7 @@
 #include <chrono>
 using namespace std::chrono;
 #define FOR_DEBUG 0
+bool isTCP = true;
 
 PConnector::PConnector() :
 		tbuf(nullptr), time(0.0), ipaddr("127.0.0.1") {
@@ -336,19 +337,16 @@ bool PConnector::connectToDataServer(const char* serverName, int port) {
 }
 
 bool PConnector::UDPconnectToDataServer(const char* serverName, int port) {
-	fprintf(stderr, "In UDPconnectToDataServer\n");
 	dsock = socket(AF_INET, SOCK_DGRAM, 0);
 	int flag = 1;
 
 	dserver.sin_family = AF_INET;
 	dserver.sin_port = htons(port);
 	dserver.sin_addr.s_addr = inet_addr(serverName);
-	fprintf(stderr, "Connecting to %s: %d\n", serverName, port);
 	if (connect(dsock, (struct sockaddr *) &dserver, sizeof(dserver))) {
 		fprintf(stderr, "connection error\n");
 		return false;
 	}
-	fprintf(stderr, "out UDPconnectToDataServer\n");
 	return true;
 }
 
@@ -507,7 +505,6 @@ bool PConnector::read(SSM_tid tmid, READ_packet_type type) {
 			}
 		}
 	}
-	fprintf(stderr, "Read Exit\n");
 	return false;
 }
 
@@ -854,8 +851,12 @@ bool PConnector::createDataCon() {
 //            fprintf(stderr, "create data connection error\n");
 	}
 	free(msg_buf);
-	//UDPconnectToDataServer(ipaddr, msg.suid);
-	connectToDataServer(ipaddr,msg.suid);
+	if(isTCP){
+		connectToDataServer(ipaddr,msg.suid);
+	}
+	else{
+		UDPconnectToDataServer(ipaddr, msg.suid);
+	}
 	return true;
 }
 
