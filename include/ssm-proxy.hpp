@@ -4,7 +4,10 @@
 #include "ssm.hpp"
 
 void test();
+<<<<<<< HEAD
 bool isTCP = true;
+=======
+>>>>>>> 9b1bae87f1fc536ca96e49bf6a251a658213bb21
 
 #define SERVER_PORT     8080            /* サーバ用PORT */
 #define SERVER_IP       0x00000000UL    /* サーバ用待ち受けIP */
