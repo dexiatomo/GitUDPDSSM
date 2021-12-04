@@ -30,7 +30,6 @@
 #include "dssm-utility.hpp"
 
 #define DEBUG 0
-bool isTCP = true;
 
 extern pid_t my_pid; // for debug
 socklen_t address_len = sizeof(struct sockaddr_in);
@@ -63,11 +62,11 @@ DataCommunicator::DataCommunicator(uint16_t nport, char* mData, uint64_t d_size,
 	
 	if(isTCP){
 		if (!this->sopen()) {
-			perror("sopen error\n");
+			perror("errororor\n");
 		}
 	}else{
 		if (!this->UDPsopen()) {
-			perror("UDPsopen error\n");
+			perror("errororor\n");
 		}
 	}
 }
@@ -430,6 +429,7 @@ bool DataCommunicator::sopen() {
 }
 
 bool DataCommunicator::UDPsopen() {
+	fprintf(stderr, "DataCommunicator::UDPsopen start\n");
 	this->udpserver.data_socket = socket(AF_INET, SOCK_DGRAM,0);
 
 	if (this->udpserver.data_socket == -1) {
@@ -437,12 +437,18 @@ bool DataCommunicator::UDPsopen() {
 		return false;
 	}
 	//bindでポートが紐づけられる
+	//debug
+	char *s = inet_ntoa(udpserver.server_addr.sin_addr);
+	uint16_t debugport = htons(udpserver.server_addr.sin_port);
+	fprintf(stderr, "DataCommunicator::UDPsopen. binding datasocket to IP address: %s, %d\n",s, debugport);
+	//debug end
 	if (bind(this->udpserver.data_socket,
 			(struct sockaddr*) &this->udpserver.server_addr,
 			sizeof(this->udpserver.server_addr)) == -1) {
 		perror("data com bind");
 		return false;
 	}
+	fprintf(stderr, "DataCommunnicator::UDPsopen end. binded.\n");
 	return true;
 }
 
@@ -481,6 +487,7 @@ bool DataCommunicator::rwait() {
 }
 
 bool DataCommunicator::UDPrwait() {
+	fprintf(stderr, "UDPrwait skip\n");
 	return true;
 }
 

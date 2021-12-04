@@ -19,11 +19,7 @@
 #include <chrono>
 using namespace std::chrono;
 #define FOR_DEBUG 0
-<<<<<<< HEAD
 bool isTCP = false;
-=======
-bool isTCP = true;
->>>>>>> 9b1bae87f1fc536ca96e49bf6a251a658213bb21
 
 PConnector::PConnector() :
 		tbuf(nullptr), time(0.0), ipaddr("127.0.0.1") {
@@ -341,20 +337,14 @@ bool PConnector::connectToDataServer(const char* serverName, int port) {
 }
 
 bool PConnector::UDPconnectToDataServer(const char* serverName, int port) {
-<<<<<<< HEAD
 	fprintf(stderr, "++UDPconnectToDataServer++\n");
-=======
->>>>>>> 9b1bae87f1fc536ca96e49bf6a251a658213bb21
 	dsock = socket(AF_INET, SOCK_DGRAM, 0);
 	int flag = 1;
 	dserver.sin_family = AF_INET;
 	dserver.sin_port = htons(port);
 	dserver.sin_addr.s_addr = inet_addr(serverName);
-<<<<<<< HEAD
 
 	fprintf(stderr, "Connecting to %s: %d\n", serverName, port);
-=======
->>>>>>> 9b1bae87f1fc536ca96e49bf6a251a658213bb21
 	if (connect(dsock, (struct sockaddr *) &dserver, sizeof(dserver))) {
 		fprintf(stderr, "connection error\n");
 		return false;
@@ -523,6 +513,7 @@ bool PConnector::read(SSM_tid tmid, READ_packet_type type) {
 			}
 		}
 	}
+	fprintf(stderr, "Read Exit\n");
 	return false;
 }
 
@@ -875,20 +866,10 @@ bool PConnector::createDataCon() {
 =======
 	if(isTCP){
 		connectToDataServer(ipaddr,msg.suid);
-<<<<<<< HEAD
 	}else{
 		UDPconnectToDataServer(ipaddr, msg.suid);
 		}
-<<<<<<< HEAD
-=======
-	}
-	else{
-		UDPconnectToDataServer(ipaddr, msg.suid);
-	}
->>>>>>> 9b1bae87f1fc536ca96e49bf6a251a658213bb21
-=======
 >>>>>>> 8c8c6c5ecaad4d48fcef7b2a786947f0c88a530d
->>>>>>> 317b64e3585a3f17e54df60dca1a7e894a1d5451
 	return true;
 }
 
