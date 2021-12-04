@@ -143,10 +143,10 @@ bool DataCommunicator::receiveTMsg(thrd_msg *tmsg) {
 }
 
 bool DataCommunicator::UDPreceiveTMsg(thrd_msg *tmsg) {
-	fprintf(stderr, "Inside UDPrecvTMsg\n");
-	int n = recvfrom(this->udpserver.data_socket,this->buf,this->thrdMsgLen,0,
+
+	recvfrom(this->udpserver.data_socket,this->buf,this->thrdMsgLen,0,
 	 (struct sockaddr *) &this->udpserver.okuru_addr,&address_len);
-	fprintf(stderr, "Outside UDPrecvTMsg n = %d\n", n);
+	 
 	return deserializeTmsg(tmsg);
 }
 
