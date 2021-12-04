@@ -38,7 +38,3 @@
 *.o
 /#*
 utilities/.libs/
-
-utilities/.libs/read_proxy_test
-utilities/.libs/ssm-player
-utilities/.libs/write_proxy_test
