@@ -30,71 +30,59 @@
 #include "dssm-utility.hpp"
 
 #define DEBUG 0
-bool isTCP = true;
 
+bool isBuffer = false;
 extern pid_t my_pid; // for debug
 socklen_t address_len = sizeof(struct sockaddr_in);
-DataCommunicator::DataCommunicator(uint16_t nport, char* mData, uint64_t d_size,
-		uint64_t t_size, SSMApiBase *pstream, PROXY_open_mode type,
-		ProxyServer* proxy) {
+
+DataCommunicator::DataCommunicator(uint16_t nport, char *mData, uint64_t d_size,
+								   uint64_t h_size, SSMApiBase *pstream, PROXY_open_mode type,
+								   ProxyServer *proxy, bool isTCP)
+{
 	this->mData = mData;
 	this->mDataSize = d_size;
-	this->ssmTimeSize = t_size;
-	this->mFullDataSize = d_size + t_size;
+	this->ssmHeaderSize = h_size;
+	this->mFullDataSize = d_size + h_size;
 	this->thrdMsgLen = dssm::util::countThrdMsgLength();
 
 	// streamはコピーされる.
 	this->pstream = pstream;
 	this->mType = type;
 	this->proxy = proxy;
+	this->isTCP = isTCP;
 
-	this->buf = (char*) malloc(sizeof(thrd_msg));
+	this->buf = (char *)malloc(sizeof(thrd_msg));
 
 	this->server.wait_socket = -1;
 	this->server.server_addr.sin_family = AF_INET;
 	this->server.server_addr.sin_addr.s_addr = htonl(SERVER_IP);
 	this->server.server_addr.sin_port = htons(nport);
 
-	this->udpserver.data_socket = -1;
-	this->udpserver.server_addr.sin_family = AF_INET;
-	this->udpserver.server_addr.sin_addr.s_addr = INADDR_ANY;
-	this->udpserver.server_addr.sin_port = htons(nport);
-	this->udpserver.okuru_addr;
-	
-	if(isTCP){
-		if (!this->sopen()) {
-			perror("sopen error\n");
-		}
-	}else{
-		if (!this->UDPsopen()) {
-			perror("UDPsopen error\n");
-		}
+	if (isTCP ? !this->sopen() : !this->UDPsopen())
+	{
+		perror("sopen error\n");
 	}
 }
 
-DataCommunicator::~DataCommunicator() {
+DataCommunicator::~DataCommunicator()
+{
 	this->sclose();
 	if (this->buf)
 		free(this->buf);
 }
-//受信
-bool DataCommunicator::receiveData() {
+//データの受信
+bool DataCommunicator::receiveData()
+{
 	int len = 0;
 	while ((len += recv(this->client.data_socket, &mData[len],
-			mFullDataSize - len, 0)) != mFullDataSize)
-		;
+						mFullDataSize - len, 0)) != mFullDataSize);
 	return true;
 }
 
-bool DataCommunicator::UDPreceiveData() {
-	//recvfrom(this->udpserver.data_socket,mData,mFullDataSize,0, (struct sockaddr*) &udpserver.okuru_addr,(socklen_t*) sizeof(udpserver.okuru_addr));
-	recv(this->udpserver.data_socket,mData,mFullDataSize,0);
-	return true;
-}
-
-bool DataCommunicator::deserializeTmsg(thrd_msg *tmsg) {
-	memset((char*)tmsg, 0, sizeof(thrd_msg));
-	char* p = this->buf;
+bool DataCommunicator::deserializeTmsg(thrd_msg *tmsg)
+{
+	memset((char *)tmsg, 0, sizeof(thrd_msg));
+	char *p = this->buf;
 	tmsg->msg_type = proxy->readLong(&p);
 	tmsg->res_type = proxy->readLong(&p);
 	tmsg->tid = proxy->readInt(&p);
@@ -102,9 +90,10 @@ bool DataCommunicator::deserializeTmsg(thrd_msg *tmsg) {
 	return true;
 }
 
-bool DataCommunicator::serializeTmsg(thrd_msg* tmsg) {
+bool DataCommunicator::serializeTmsg(thrd_msg *tmsg)
+{
 	// memset((char*)tmsg, 0, sizeof(thrd_msg));
-	char* p = this->buf;
+	char *p = this->buf;
 	proxy->writeLong(&p, tmsg->msg_type);
 	proxy->writeLong(&p, tmsg->res_type);
 	proxy->writeInt(&p, tmsg->tid);
@@ -112,316 +101,239 @@ bool DataCommunicator::serializeTmsg(thrd_msg* tmsg) {
 	return true;
 }
 
-bool DataCommunicator::sendTMsg(thrd_msg *tmsg) {
-	if (serializeTmsg(tmsg)) {
-		if (send(this->client.data_socket, this->buf, this->thrdMsgLen, 0)
-				!= -1) {
-			return true;
-		}
-	}
-	return false;
-}
-
-bool DataCommunicator::UDPsendTMsg(thrd_msg *tmsg) {
-	if (serializeTmsg(tmsg)) {
-		if (sendto(this->udpserver.data_socket, this->buf, this->thrdMsgLen, 0, 
-		(struct sockaddr*) &udpserver.okuru_addr,address_len)!=0)
+bool DataCommunicator::sendTMsg(thrd_msg *tmsg)
+{
+	if (serializeTmsg(tmsg))
+	{
+		if (send(this->client.data_socket, this->buf, this->thrdMsgLen, 0) != -1)
 		{
 			return true;
 		}
 	}
 	return false;
 }
-
-bool DataCommunicator::receiveTMsg(thrd_msg *tmsg) {
+bool DataCommunicator::receiveTMsg(thrd_msg *tmsg)
+{
 	int len;
-	if ((len = recv(this->client.data_socket, this->buf, this->thrdMsgLen, 0))
-			> 0) {
+	if ((len = recv(this->client.data_socket, this->buf, this->thrdMsgLen, 0)) > 0)
+	{
 		return deserializeTmsg(tmsg);
 	}
-	
+
 	return false;
 }
 
-bool DataCommunicator::UDPreceiveTMsg(thrd_msg *tmsg) {
-	recvfrom(this->udpserver.data_socket,this->buf,this->thrdMsgLen,0,
-	 (struct sockaddr *) &this->udpserver.okuru_addr,&address_len);
-	return deserializeTmsg(tmsg);
-}
-
-void DataCommunicator::handleData() {
-	 char *p;
+void DataCommunicator::handleData()
+{
+	char *p;
 	ssmTimeT time;
-	while (true) {
-		if (!receiveData()) {
+	while (true)
+	{
+		if (!receiveData())
+		{
 			fprintf(stderr, "receiveData Error happends\n");
 			break;
 		}
-		 p = &mData[8];
+		p = &mData[ssmHeaderSize];
 
-		time = *(reinterpret_cast<ssmTimeT*>(mData));
+		time = *(reinterpret_cast<ssmTimeT *>(mData));
 		pstream->write(time);
 #ifdef DEBUG
-	// std::cout << "tid " << this->pstream->timeId << "\n";
-	// dssm::util::hexdump(&mData[sizeof(ssmTimeT)], mDataSize);
-	// std::cout << std::endl;
+		// std::cout << "tid " << this->pstream->timeId << "\n";
+		// dssm::util::hexdump(&mData[sizeof(ssmTimeT)], mDataSize);
+		// std::cout << std::endl;
 #endif
 	}
 	// pstream->showRawData();
 }
 
-void DataCommunicator::UDPhandleData() {
-	ssmTimeT time;
-	while (true) {
-		if (!UDPreceiveData()) {
-			fprintf(stderr, "UDPreceiveData Error happends\n");
-			break;
+//とりあえず新しいデータを送り続けるモードだけで考えてみる
+void DataCommunicator::handleBuffer()
+{
+	SSM_tid tid = -1;
+	while (true)
+	{
+		//read TIME_ID
+		if (!pstream->read(tid))
+		{
+			fprintf(stderr, "[%s] SSMApi::read error.\n", pstream->getStreamName());
 		}
-		time = *(reinterpret_cast<ssmTimeT*>(mData));
-		pstream->write(time);
-#ifdef DEBUG
-	// std::cout << "tid " << this->pstream->timeId << "\n";
-	// dssm::util::hexdump(&mData[sizeof(ssmTimeT)], mDataSize);
-	// std::cout << std::endl;
-#endif
+		mData[0] = pstream->timeId;
+		mData[sizeof(SSM_tid)] = pstream->time;
+		if (!sendBulkData(mData, mFullDataSize))
+		{
+			perror("send bulk Error");
+		}
+		break;
 	}
-	// pstream->showRawData();
 }
 
-bool DataCommunicator::sendBulkData(char* buf, uint64_t size) {
+bool DataCommunicator::sendBulkData(char *buf, uint64_t size)
+{
 #ifdef DEBUG
 	// dssm::util::hexdump(buf, size);
 #endif
-	if (send(this->client.data_socket, buf, size, 0) != -1) {
+	if (send(this->client.data_socket, buf, size, 0) != -1)
+	{
 		return true;
 	}
 	return false;
 }
 
-bool DataCommunicator::UDPsendBulkData(char* buf, uint64_t size) {
-#ifdef DEBUG
-	// dssm::util::hexdump(buf, size);
-#endif
-	if (sendto(this->udpserver.data_socket, buf, size, 0,(struct sockaddr*) &udpserver.okuru_addr,address_len) != -1) {
-		return true;
-	}
-	return false;
-}
-
-void DataCommunicator::handleRead() {
+void DataCommunicator::handleRead()
+{
 	thrd_msg tmsg;
 	printf("handleRead\n");
-	while (true) {
-		if (receiveTMsg(&tmsg)) {
-			switch (tmsg.msg_type) {
-				case TID_REQ: {
-					tmsg.tid = getTID(pstream->getSSMId(), tmsg.time);
-					tmsg.res_type = TMC_RES;
-					sendTMsg(&tmsg);
-					break;
-				}
-				case TOP_TID_REQ: {
-					tmsg.tid = getTID_top(pstream->getSSMId());
-					tmsg.res_type = TMC_RES;
-					sendTMsg(&tmsg);
-					break;
-				}
-				case BOTTOM_TID_REQ: {
-					tmsg.tid = getTID_bottom(pstream->getSSMId());
-					tmsg.res_type = TMC_RES;
-					sendTMsg(&tmsg);
-					break;
-				}
-				case READ_NEXT: {
-					int dt = tmsg.tid;
-					pstream->readNext(dt);
-					tmsg.tid = pstream->timeId;
-					tmsg.time = pstream->time;
-					tmsg.res_type = TMC_RES;
-					if (sendTMsg(&tmsg)) {
-						if (!sendBulkData(&mData[sizeof(ssmTimeT)], mDataSize)) {
-							perror("send bulk Error");
-						}
-					}
-					break;
-				}
-				case TIME_ID: {
-					SSM_tid req_tid = (SSM_tid) tmsg.tid;
-					if (!pstream->read(req_tid)) {
-						fprintf(stderr, "[%s] SSMApi::read error.\n", pstream->getStreamName());
-					}
-					tmsg.tid = pstream->timeId;
-					tmsg.time = pstream->time;
-					tmsg.res_type = TMC_RES;
-					if (sendTMsg(&tmsg)) {
-						if (!sendBulkData(&mData[sizeof(ssmTimeT)], mDataSize)) {
-							perror("send bulk Error");
-						}
-					}
-					break;
-				}
-				case REAL_TIME: {
-					ssmTimeT t = tmsg.time;
-					if (!pstream->readTime(t)) {
-						fprintf(stderr, "[%s] SSMApi::readTime error.\n", pstream->getStreamName());
-					}
-					tmsg.tid = pstream->timeId;
-					tmsg.time = pstream->time;
-					tmsg.res_type = TMC_RES;
-					if (sendTMsg(&tmsg)) {
-					  if (!sendBulkData(&mData[sizeof(ssmTimeT)], mDataSize)) {
-					    perror("send bulk Error");
-					  }
-					}
-					break;
-				}
-				default: {
-					//thrd_msg* ptr = &tmsg;                                        
-					break;
-				}
+	while (true)
+	{
+		if (receiveTMsg(&tmsg))
+		{
+			switch (tmsg.msg_type)
+			{
+			case TID_REQ:
+			{
+				tmsg.tid = getTID(pstream->getSSMId(), tmsg.time);
+				tmsg.res_type = TMC_RES;
+				sendTMsg(&tmsg);
+				break;
 			}
-		} else {
+			case TOP_TID_REQ:
+			{
+				tmsg.tid = getTID_top(pstream->getSSMId());
+				tmsg.res_type = TMC_RES;
+				sendTMsg(&tmsg);
+				break;
+			}
+			case BOTTOM_TID_REQ:
+			{
+				tmsg.tid = getTID_bottom(pstream->getSSMId());
+				tmsg.res_type = TMC_RES;
+				sendTMsg(&tmsg);
+				break;
+			}
+			case READ_NEXT:
+			{
+				int dt = tmsg.tid;
+				pstream->readNext(dt);
+				tmsg.tid = pstream->timeId;
+				tmsg.time = pstream->time;
+				tmsg.res_type = TMC_RES;
+				if (sendTMsg(&tmsg))
+				{
+					if (!sendBulkData(&mData[sizeof(ssmTimeT)], mDataSize))
+					{
+						perror("send bulk Error");
+					}
+				}
+				break;
+			}
+			case TIME_ID:
+			{
+				SSM_tid req_tid = (SSM_tid)tmsg.tid;
+				if (!pstream->read(req_tid))
+				{
+					fprintf(stderr, "[%s] SSMApi::read error.\n", pstream->getStreamName());
+				}
+				tmsg.tid = pstream->timeId;
+				tmsg.time = pstream->time;
+				tmsg.res_type = TMC_RES;
+				if (sendTMsg(&tmsg))
+				{
+					if (!sendBulkData(&mData[sizeof(ssmTimeT)], mDataSize))
+					{
+						perror("send bulk Error");
+					}
+				}
+				break;
+			}
+			case REAL_TIME:
+			{
+				ssmTimeT t = tmsg.time;
+				if (!pstream->readTime(t))
+				{
+					fprintf(stderr, "[%s] SSMApi::readTime error.\n", pstream->getStreamName());
+				}
+				tmsg.tid = pstream->timeId;
+				tmsg.time = pstream->time;
+				tmsg.res_type = TMC_RES;
+				if (sendTMsg(&tmsg))
+				{
+					if (!sendBulkData(&mData[sizeof(ssmTimeT)], mDataSize))
+					{
+						perror("send bulk Error");
+					}
+				}
+				break;
+			}
+			default:
+			{
+				//thrd_msg* ptr = &tmsg;
+				break;
+			}
+			}
+		}
+		else
+		{
 			break;
 		}
 	}
 }
 
-void DataCommunicator::UDPhandleRead() {
-	thrd_msg tmsg;
-	while (true) {
-		if (UDPreceiveTMsg(&tmsg)) {
-			switch (tmsg.msg_type) {
-				case TID_REQ: {
-					tmsg.tid = getTID(pstream->getSSMId(), tmsg.time);
-					tmsg.res_type = TMC_RES;
-					UDPsendTMsg(&tmsg);
-					break;
-				}
-				case TOP_TID_REQ: {
-					tmsg.tid = getTID_top(pstream->getSSMId());
-					tmsg.res_type = TMC_RES;
-					UDPsendTMsg(&tmsg);
-					break;
-				}
-				case BOTTOM_TID_REQ: {
-					tmsg.tid = getTID_bottom(pstream->getSSMId());
-					tmsg.res_type = TMC_RES;
-					UDPsendTMsg(&tmsg);
-					break;
-				}
-				case READ_NEXT: {
-					int dt = tmsg.tid;
-					pstream->readNext(dt);
-					tmsg.tid = pstream->timeId;
-					tmsg.time = pstream->time;
-					tmsg.res_type = TMC_RES;
-					if (UDPsendTMsg(&tmsg)) {
-						if (!UDPsendBulkData(&mData[sizeof(ssmTimeT)], mDataSize)) {
-							perror("send bulk Error");
-						}
-					}
-					break;
-				}
-				case TIME_ID: {
-					
-					SSM_tid req_tid = (SSM_tid) tmsg.tid;
-					if (!pstream->read(req_tid)) {
-						fprintf(stderr, "[%s] SSMApi::read error.\n", pstream->getStreamName());
-					}
-					tmsg.tid = pstream->timeId;
-					tmsg.time = pstream->time;
-					tmsg.res_type = TMC_RES;
-					if (UDPsendTMsg(&tmsg)) {
-						if (!UDPsendBulkData(&mData[sizeof(ssmTimeT)], mDataSize)) {
-							perror("send bulk Error");
-						}
-					}
-					break;
-				}
-				case REAL_TIME: {
-					ssmTimeT t = tmsg.time;
-					if (!pstream->readTime(t)) {
-						fprintf(stderr, "[%s] SSMApi::readTime error.\n", pstream->getStreamName());
-					}
-					tmsg.tid = pstream->timeId;
-					tmsg.time = pstream->time;
-					tmsg.res_type = TMC_RES;
-					if (UDPsendTMsg(&tmsg)) {
-					  if (!UDPsendBulkData(&mData[sizeof(ssmTimeT)], mDataSize)) {
-					    perror("send bulk Error");
-					  }
-					}
-					break;
-				}
-				default: {
-					//thrd_msg* ptr = &tmsg;                                        
-					break;
-				}
-			}
-		} else {
+void *DataCommunicator::run(void *args)
+{
+	if (isTCP ? rwait() : UDPrwait())
+	{
+		switch (mType)
+		{
+		case WRITE_MODE:
+		{
+			handleData();
 			break;
 		}
-	}
-}
-
-void* DataCommunicator::run(void* args) {
-	if(isTCP){
-		if (rwait()) {
-			switch (mType) {
-				case WRITE_MODE: {
-					handleData();
-					break;
-				}
-				case READ_MODE: {
-					handleRead();
-					break;
-				}
-				default: {
-					perror("no such mode");
-				}
-			}
+		case READ_MODE:
+		{
+			handleRead();
+			break;
 		}
-		return nullptr;
-	}
-	else{
-		if (UDPrwait()) {
-			switch (mType) {
-				case WRITE_MODE: {
-					UDPhandleData();
-					break;
-				}
-				case READ_MODE: {
-					UDPhandleRead();
-					break;
-				}
-				default: {
-					perror("no such mode");
-			}
+		case BUFFER_MODE:
+		{
+			fprintf(stderr, "handle BUFFER_MODE\n");
+			handleBuffer();
+			break;
+		}
+		default:
+		{
+			perror("no such mode");
+		}
 		}
 	}
 	return nullptr;
-	}
 }
 
-bool DataCommunicator::sopen() {
+bool DataCommunicator::sopen()
+{
 	this->server.wait_socket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 	int flag = 1;
-	int ret = setsockopt(this->server.wait_socket, IPPROTO_TCP, TCP_NODELAY, (char*)&flag, sizeof(flag));
-	if (ret == -1) {
+	int ret = setsockopt(this->server.wait_socket, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(flag));
+	if (ret == -1)
+	{
 		fprintf(stderr, "server setsocket");
 		exit(1);
 	}
-	if (this->server.wait_socket == -1) {
+	if (this->server.wait_socket == -1)
+	{
 		perror("open socket error");
 		return false;
 	}
 	if (bind(this->server.wait_socket,
-			(struct sockaddr*) &this->server.server_addr,
-			sizeof(this->server.server_addr)) == -1) {
+			 (struct sockaddr *)&this->server.server_addr,
+			 sizeof(this->server.server_addr)) == -1)
+	{
 		perror("data com bind");
 		return false;
 	}
-	if (listen(this->server.wait_socket, 5) == -1) {
+	if (listen(this->server.wait_socket, 5) == -1)
+	{
 		perror("data com open");
 		return false;
 	}
@@ -429,47 +341,30 @@ bool DataCommunicator::sopen() {
 	return true;
 }
 
-bool DataCommunicator::UDPsopen() {
-	this->udpserver.data_socket = socket(AF_INET, SOCK_DGRAM,0);
-
-	if (this->udpserver.data_socket == -1) {
-		perror("open socket error");
-		return false;
-	}
-	//bindでポートが紐づけられる
-	if (bind(this->udpserver.data_socket,
-			(struct sockaddr*) &this->udpserver.server_addr,
-			sizeof(this->udpserver.server_addr)) == -1) {
-		perror("data com bind");
-		return false;
-	}
-	return true;
-}
-
-bool DataCommunicator::sclose() {
-	if (this->client.data_socket != -1) {
+bool DataCommunicator::sclose()
+{
+	if (this->client.data_socket != -1)
+	{
 		close(this->client.data_socket);
 		this->client.data_socket = -1;
 	}
-	if (this->server.wait_socket != -1) {
+	if (this->server.wait_socket != -1)
+	{
 		close(this->server.wait_socket);
 		this->server.wait_socket = -1;
 	}
-	if (this->udpserver.data_socket != -1) {
-		close(this->udpserver.data_socket);
-		this->udpserver.data_socket = -1;
-	}
-
 	return true;
 }
 
-bool DataCommunicator::rwait() {
+bool DataCommunicator::rwait()
+{
 	memset(&this->client, 0, sizeof(this->client));
 	this->client.data_socket = -1;
-	for (;;) {
+	for (;;)
+	{
 		socklen_t client_addr_len = sizeof(this->client.client_addr);
 		this->client.data_socket = accept(this->server.wait_socket,
-				(struct sockaddr*) &this->client.client_addr, &client_addr_len);
+										  (struct sockaddr *)&this->client.client_addr, &client_addr_len);
 		if (this->client.data_socket != -1)
 			break;
 		if (errno == EINTR)
@@ -480,15 +375,42 @@ bool DataCommunicator::rwait() {
 	return true;
 }
 
-bool DataCommunicator::UDPrwait() {
+bool DataCommunicator::UDPsopen()
+{
+	client.data_socket = socket(AF_INET, SOCK_DGRAM, 0);
+	if (client.data_socket == -1)
+	{
+		perror("open socket error");
+		return false;
+	}
+	//bindでポートが紐づけられる
+	if (bind(client.data_socket,
+			 (struct sockaddr *)&server.server_addr,
+			 sizeof(this->server.server_addr)) == -1)
+	{
+		perror("data com bind");
+		return false;
+	}
 	return true;
 }
 
-ProxyServer::ProxyServer() {
+bool DataCommunicator::UDPrwait()
+{
+	recvfrom(client.data_socket, buf, sizeof(buf), 0,
+			 (struct sockaddr *)&client.client_addr, &address_len);
+	connect(client.data_socket, (struct sockaddr *)&client.client_addr, address_len);
+	return true;
+}
+
+//==============================================================================================================================================================================================================================
+//=========================================================================================================PROXY SERVER=========================================================================================================
+//==============================================================================================================================================================================================================================
+ProxyServer::ProxyServer()
+{
 	nport = SERVER_PORT;
 	mData = NULL;
 	mDataSize = 0;
-	ssmTimeSize = sizeof(ssmTimeT);
+	ssmHeaderSize = sizeof(ssmTimeT);
 	mFullDataSize = 0;
 	mProperty = NULL;
 	mPropertySize = 0;
@@ -497,7 +419,8 @@ ProxyServer::ProxyServer() {
 	dssmMsgLen = dssm::util::countDssmMsgLength();
 }
 
-ProxyServer::~ProxyServer() {
+ProxyServer::~ProxyServer()
+{
 	this->server_close();
 	free(mData);
 	mData = NULL;
@@ -505,7 +428,8 @@ ProxyServer::~ProxyServer() {
 	com = nullptr;
 }
 
-bool ProxyServer::init() {
+bool ProxyServer::init()
+{
 	setupSigHandler();
 	memset(&this->server, 0, sizeof(this->server));
 	this->server.wait_socket = -1;
@@ -516,26 +440,31 @@ bool ProxyServer::init() {
 	return this->open();
 }
 
-bool ProxyServer::open() {
+bool ProxyServer::open()
+{
 	this->server.wait_socket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 	int flag = 1;
-	int ret = setsockopt(this->server.wait_socket, IPPROTO_TCP, TCP_NODELAY, (char*)&flag, sizeof(flag));
-	if (ret == -1) {
+	int ret = setsockopt(this->server.wait_socket, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(flag));
+	if (ret == -1)
+	{
 		perror("proxy setsockopt");
 		exit(1);
 	}
-	
-	if (this->server.wait_socket == -1) {
+
+	if (this->server.wait_socket == -1)
+	{
 		perror("open socket error");
 		return false;
 	}
 	if (bind(this->server.wait_socket,
-			(struct sockaddr*) &this->server.server_addr,
-			sizeof(this->server.server_addr)) == -1) {
+			 (struct sockaddr *)&this->server.server_addr,
+			 sizeof(this->server.server_addr)) == -1)
+	{
 		perror("server bind");
 		return false;
 	}
-	if (listen(this->server.wait_socket, 5) == -1) {
+	if (listen(this->server.wait_socket, 5) == -1)
+	{
 		perror("server open");
 		return false;
 	}
@@ -543,14 +472,15 @@ bool ProxyServer::open() {
 	return true;
 }
 
-bool ProxyServer::wait() {
-	fprintf(stderr, "hwait::Start\n");
+bool ProxyServer::wait()
+{
 	memset(&this->client, 0, sizeof(this->client));
 	this->client.data_socket = -1;
-	for (;;) {
+	for (;;)
+	{
 		socklen_t client_addr_len = sizeof(this->client.client_addr);
 		this->client.data_socket = accept(this->server.wait_socket,
-				(struct sockaddr*) &this->client.client_addr, &client_addr_len);
+										  (struct sockaddr *)&this->client.client_addr, &client_addr_len);
 		if (this->client.data_socket != -1)
 			break;
 		if (errno == EINTR)
@@ -562,23 +492,28 @@ bool ProxyServer::wait() {
 	fprintf(stderr, "hwait::End\n");
 }
 
-bool ProxyServer::server_close() {
-	if (this->server.wait_socket != -1) {
+bool ProxyServer::server_close()
+{
+	if (this->server.wait_socket != -1)
+	{
 		close(this->server.wait_socket);
 		this->server.wait_socket = -1;
 	}
 	return true;
 }
 
-bool ProxyServer::client_close() {
-	if (this->client.data_socket != -1) {
+bool ProxyServer::client_close()
+{
+	if (this->client.data_socket != -1)
+	{
 		close(this->client.data_socket);
 		this->client.data_socket = -1;
 	}
 	return true;
 }
 
-int ProxyServer::readInt(char **p) {
+int ProxyServer::readInt(char **p)
+{
 	uint8_t v1 = **p;
 	(*p)++;
 	uint8_t v2 = **p;
@@ -588,11 +523,12 @@ int ProxyServer::readInt(char **p) {
 	uint8_t v4 = **p;
 	(*p)++;
 
-	int v = (int) (v1 << 24 | v2 << 16 | v3 << 8 | v4);
+	int v = (int)(v1 << 24 | v2 << 16 | v3 << 8 | v4);
 	return v;
 }
 
-uint64_t ProxyServer::readLong(char **p) {
+uint64_t ProxyServer::readLong(char **p)
+{
 	uint8_t v1 = **p;
 	(*p)++;
 	uint8_t v2 = **p;
@@ -610,27 +546,30 @@ uint64_t ProxyServer::readLong(char **p) {
 	uint8_t v8 = **p;
 	(*p)++;
 
-	uint64_t lv = (uint64_t) ((uint64_t) v1 << 56 | (uint64_t) v2 << 48
-			| (uint64_t) v3 << 40 | (uint64_t) v4 << 32 | (uint64_t) v5 << 24
-			| (uint64_t) v6 << 16 | (uint64_t) v7 << 8 | (uint64_t) v8);
+	uint64_t lv = (uint64_t)((uint64_t)v1 << 56 | (uint64_t)v2 << 48 | (uint64_t)v3 << 40 | (uint64_t)v4 << 32 | (uint64_t)v5 << 24 | (uint64_t)v6 << 16 | (uint64_t)v7 << 8 | (uint64_t)v8);
 	return lv;
 }
 
-double ProxyServer::readDouble(char **p) {
+double ProxyServer::readDouble(char **p)
+{
 	char buf[8];
-	for (int i = 0; i < 8; ++i, (*p)++) {
+	for (int i = 0; i < 8; ++i, (*p)++)
+	{
 		buf[7 - i] = **p;
 	}
-	return *(double*) buf;
+	return *(double *)buf;
 }
 
-void ProxyServer::readRawData(char **p, char *d, int len) {
-	for (int i = 0; i < len; ++i, (*p)++) {
+void ProxyServer::readRawData(char **p, char *d, int len)
+{
+	for (int i = 0; i < len; ++i, (*p)++)
+	{
 		d[i] = **p;
 	}
 }
 
-void ProxyServer::writeInt(char **p, int v) {
+void ProxyServer::writeInt(char **p, int v)
+{
 	**p = (v >> 24) & 0xff;
 	(*p)++;
 	**p = (v >> 16) & 0xff;
@@ -641,7 +580,8 @@ void ProxyServer::writeInt(char **p, int v) {
 	(*p)++;
 }
 
-void ProxyServer::writeLong(char **p, uint64_t v) {
+void ProxyServer::writeLong(char **p, uint64_t v)
+{
 	**p = (v >> 56) & 0xff;
 	(*p)++;
 	**p = (v >> 48) & 0xff;
@@ -653,19 +593,23 @@ void ProxyServer::writeLong(char **p, uint64_t v) {
 	this->writeInt(p, v);
 }
 
-void ProxyServer::writeDouble(char **p, double v) {
-	char *dp = (char*) &v;
-	for (int i = 0; i < 8; ++i, (*p)++) {
+void ProxyServer::writeDouble(char **p, double v)
+{
+	char *dp = (char *)&v;
+	for (int i = 0; i < 8; ++i, (*p)++)
+	{
 		**p = dp[7 - i] & 0xff;
 	}
 }
 
-void ProxyServer::writeRawData(char **p, char *d, int len) {
+void ProxyServer::writeRawData(char **p, char *d, int len)
+{
 	for (int i = 0; i < len; ++i, (*p)++)
 		**p = d[i];
 }
 
-void ProxyServer::deserializeMessage(ssm_msg *msg, char *buf) {
+void ProxyServer::deserializeMessage(ssm_msg *msg, char *buf)
+{
 	msg->msg_type = readLong(&buf);
 	msg->res_type = readLong(&buf);
 	msg->cmd_type = readInt(&buf);
@@ -677,23 +621,27 @@ void ProxyServer::deserializeMessage(ssm_msg *msg, char *buf) {
 	msg->saveTime = readDouble(&buf);
 }
 
-int ProxyServer::receiveMsg(ssm_msg *msg, char *buf) {
+int ProxyServer::receiveMsg(ssm_msg *msg, char *buf)
+{
 	int len = recv(this->client.data_socket, buf, this->dssmMsgLen, 0);
-	if (len > 0) {
+	if (len > 0)
+	{
 		deserializeMessage(msg, buf);
 	}
 	return len;
 }
 
-int ProxyServer::sendMsg(int cmd_type, ssm_msg *msg) {
+int ProxyServer::sendMsg(int cmd_type, ssm_msg *msg)
+{
 	ssm_msg msgbuf;
 	uint64_t len;
 	char *buf, *p;
-	if (msg == NULL) {
+	if (msg == NULL)
+	{
 		msg = &msgbuf;
 	}
 	msg->cmd_type = cmd_type;
-	buf = (char*) malloc(sizeof(ssm_msg));
+	buf = (char *)malloc(sizeof(ssm_msg));
 	p = buf;
 	writeLong(&p, msg->msg_type);
 	writeLong(&p, msg->res_type);
@@ -705,7 +653,8 @@ int ProxyServer::sendMsg(int cmd_type, ssm_msg *msg) {
 	writeDouble(&p, msg->time);
 	writeDouble(&p, msg->saveTime);
 
-	if ((len = send(this->client.data_socket, buf, this->dssmMsgLen, 0)) == -1) {
+	if ((len = send(this->client.data_socket, buf, this->dssmMsgLen, 0)) == -1)
+	{
 		fprintf(stderr, "error happens\n");
 	}
 
@@ -713,45 +662,58 @@ int ProxyServer::sendMsg(int cmd_type, ssm_msg *msg) {
 	return len;
 }
 
-void ProxyServer::handleCommand() {
+void ProxyServer::handleCommand()
+{
 	ssm_msg msg;
-	char *buf = (char*) malloc(sizeof(ssm_msg));
-	while (true) {
+	char *buf = (char *)malloc(sizeof(ssm_msg));
+	while (true)
+	{
 		int len = receiveMsg(&msg, buf);
 		if (len == 0)
 			break;
-		switch (msg.cmd_type & 0x1f) {
-		case MC_NULL: {
+		switch (msg.cmd_type & 0x1f)
+		{
+		case MC_NULL:
+		{
 			break;
 		}
-		case MC_INITIALIZE: {
-			if (!initSSM()) {
+		case MC_INITIALIZE:
+		{
+			if (!initSSM())
+			{
 				fprintf(stderr, "init ssm error in ssm-proxy\n");
 				sendMsg(MC_FAIL, &msg);
 				break;
-			} else {
+			}
+			else
+			{
 				sendMsg(MC_RES, &msg);
 			}
 			break;
 		}
-		case MC_CREATE: {
+		case MC_CREATE:
+		{
 			setSSMType(WRITE_MODE);
 			mDataSize = msg.ssize;
 			mFullDataSize = mDataSize + sizeof(ssmTimeT);
-			if (mData) {
+			if (mData)
+			{
 				free(mData);
 			}
 
-			mData = (char*) malloc(mFullDataSize);
+			mData = (char *)malloc(mFullDataSize);
 
-			if (mData == NULL) {
+			if (mData == NULL)
+			{
 				fprintf(stderr, "fail to create mData\n");
 				sendMsg(MC_FAIL, &msg);
-			} else {
-
+			}
+			else
+			{
 				stream.setDataBuffer(&mData[sizeof(ssmTimeT)], mDataSize);
 				if (!stream.create(msg.name, msg.suid, msg.saveTime,
-						msg.time)) {
+								   msg.time))
+				{
 					sendMsg(MC_FAIL, &msg);
 					break;
 				}
@@ -760,52 +722,75 @@ void ProxyServer::handleCommand() {
 
 			break;
 		}
-		case MC_OPEN: {
+		case MC_OPEN:
+		{
 			mDataSize = msg.ssize;
-			mFullDataSize = mDataSize + sizeof(ssmTimeT);
-			if (mData) {
+			if (mData)
+			{
 				free(mData);
 			}
-			mData = (char*) malloc(mFullDataSize);
 
-			SSM_open_mode openMode = (SSM_open_mode) (msg.cmd_type & SSM_MODE_MASK);
+			SSM_open_mode openMode = (SSM_open_mode)(msg.cmd_type & SSM_MODE_MASK);
 
-			switch (openMode) {
-				case SSM_READ: {
-					setSSMType(READ_MODE);
-					break;
-				}
-				case SSM_WRITE: {
-					setSSMType(WRITE_MODE);
-					break;
-				}
-				default: {
-					fprintf(stderr, "unknown ssm_open_mode\n");
-				}
+			switch (openMode)
+			{
+			case SSM_READ:
+			{
+				setSSMType(READ_MODE);
+				break;
 			}
+			case SSM_WRITE:
+			{
+				setSSMType(WRITE_MODE);
+				break;
+			}
+			//勝手に設定した 後で必ず見直すこと
+			case SSM_EXCLUSIVE:
+			{
+				fprintf(stderr, "MC_BUFFER\n");
+				ssmHeaderSize += sizeof(SSM_tid);
+				setSSMType(BUFFER_MODE);
+				break;
+			}
+			default:
+			{
+				fprintf(stderr, "unknown ssm_open_mode\n");
+			}
+			}
+			mFullDataSize = mDataSize + ssmHeaderSize;
+			mData = (char *)malloc(mFullDataSize);
 
-			if (mData == NULL) {
+			if (mData == NULL)
+			{
 				fprintf(stderr, "fail to create mData");
 				sendMsg(MC_FAIL, &msg);
-			} else {
-				stream.setDataBuffer(&mData[sizeof(ssmTimeT)], mDataSize);
-				if (!stream.open(msg.name, msg.suid)) {
+			}
+			else
+			{
+				stream.setDataBuffer(&mData[ssmHeaderSize], mDataSize);
+				if (!stream.open(msg.name, msg.suid))
+				{
 					fprintf(stderr, "stream open failed");
 					endSSM();
 					sendMsg(MC_FAIL, &msg);
-				} else {
+				}
+				else
+				{
 					sendMsg(MC_RES, &msg);
 				}
 			}
 			break;
 		}
-		case MC_STREAM_PROPERTY_SET: {
+		case MC_STREAM_PROPERTY_SET:
+		{
 			mPropertySize = msg.ssize;
-			if (mProperty) {
+			if (mProperty)
+			{
 				free(mProperty);
 			}
-			mProperty = (char*) malloc(mPropertySize);
-			if (mProperty == NULL) {
+			mProperty = (char *)malloc(mPropertySize);
+			if (mProperty == NULL)
+			{
 				sendMsg(MC_FAIL, &msg);
 				break;
 			}
@@ -813,74 +798,96 @@ void ProxyServer::handleCommand() {
 			sendMsg(MC_RES, &msg);
 			uint64_t len = 0;
 			while ((len += recv(this->client.data_socket, &mProperty[len],
-					mPropertySize - len, 0)) != mPropertySize)
+								mPropertySize - len, 0)) != mPropertySize)
 				;
 
-			if (len == mPropertySize) {
-				if (!stream.setProperty()) {
+			if (len == mPropertySize)
+			{
+				if (!stream.setProperty())
+				{
 					sendMsg(MC_FAIL, &msg);
 					break;
 				}
 				sendMsg(MC_RES, &msg);
-			} else {
+			}
+			else
+			{
 				sendMsg(MC_FAIL, &msg);
 			}
 			break;
 		}
-		case MC_STREAM_PROPERTY_GET: {
-			if (mProperty) {
+		case MC_STREAM_PROPERTY_GET:
+		{
+			if (mProperty)
+			{
 				free(mProperty);
 			}
 			mPropertySize = msg.ssize;
-			mProperty = (char*) malloc(mPropertySize);
-			if (mProperty == NULL) {
+			mProperty = (char *)malloc(mPropertySize);
+			if (mProperty == NULL)
+			{
 				sendMsg(MC_FAIL, &msg);
 				break;
 			}
 			stream.setPropertyBuffer(mProperty, mPropertySize);
 
-			if (!stream.getProperty()) {
+			if (!stream.getProperty())
+			{
 				fprintf(stderr, "can't get property on SSM\n");
 				sendMsg(MC_FAIL, &msg);
 				break;
 			}
 
 			sendMsg(MC_RES, &msg);
-			if (send(this->client.data_socket, mProperty, mPropertySize, 0)
-					== -1) {
+			if (send(this->client.data_socket, mProperty, mPropertySize, 0) == -1)
+			{
 				fprintf(stderr, "packet send error\n");
 			}
 			break;
 		}
-		case MC_OFFSET: {
+		case MC_OFFSET:
+		{
 			ssmTimeT offset = msg.time;
 			settimeOffset(offset);
 			sendMsg(MC_RES, &msg);
 			break;
 		}
-		case MC_CONNECTION: {
+		case MC_CONNECTION:
+		{
 			msg.suid = nport;
-			com = new DataCommunicator(nport, mData, mDataSize, ssmTimeSize,
-					&stream, mType, this);
+			com = new DataCommunicator(nport, mData, mDataSize, ssmHeaderSize,
+									   &stream, mType, this);
 			com->start(nullptr);
 			sendMsg(MC_RES, &msg);
 			break;
 		}
-		case MC_TERMINATE: {
+		case MC_UDPCONNECTION:
+		{
+			msg.suid = nport;
+			com = new DataCommunicator(nport, mData, mDataSize, ssmHeaderSize,
+									   &stream, mType, this, false);
+			com->start(nullptr);
+			sendMsg(MC_RES, &msg);
+			break;
+		}
+		case MC_TERMINATE:
+		{
 			sendMsg(MC_RES, &msg);
 			goto END_PROC;
 			break;
 		}
-		default: {
+		default:
+		{
 			fprintf(stderr, "NOTICE : unknown msg %d", msg.cmd_type);
 			break;
 		}
 		}
-
 	}
 
-	END_PROC: free(buf);
-	if (com) {
+END_PROC:
+	free(buf);
+	if (com)
+	{
 		com->wait();
 	}
 	free(com);
@@ -889,24 +896,32 @@ void ProxyServer::handleCommand() {
 	endSSM();
 }
 
-void ProxyServer::setSSMType(PROXY_open_mode mode) {
+void ProxyServer::setSSMType(PROXY_open_mode mode)
+{
 	mType = mode;
 }
 
-bool ProxyServer::run() {
-	
-	while (wait()) {
+bool ProxyServer::run()
+{
+
+	while (wait())
+	{
 		++nport;
 		pid_t child_pid = fork();
-		if (child_pid == -1) { // fork failed
+		if (child_pid == -1)
+		{ // fork failed
 			break;
-		} else if (child_pid == 0) { // child
+		}
+		else if (child_pid == 0)
+		{ // child
 			this->server_close();
 			this->handleCommand();
 			this->client_close();
 			//fprintf(stderr, "end of process");
 			exit(1);
-		} else { // parent
+		}
+		else
+		{ // parent
 			this->client_close();
 		}
 	}
@@ -914,20 +929,23 @@ bool ProxyServer::run() {
 	return true;
 }
 
-void ProxyServer::setupSigHandler() {
+void ProxyServer::setupSigHandler()
+{
 	struct sigaction act;
-	memset(&act, 0, sizeof(act)); /* sigaction構造体をとりあえずクリア */
+	memset(&act, 0, sizeof(act));				/* sigaction構造体をとりあえずクリア */
 	act.sa_handler = &ProxyServer::catchSignal; /* SIGCHLD発生時にcatch_SIGCHLD()を実行 */
-	sigemptyset(&act.sa_mask); /* catch_SIGCHLD()中の追加シグナルマスクなし */
+	sigemptyset(&act.sa_mask);					/* catch_SIGCHLD()中の追加シグナルマスクなし */
 	act.sa_flags = SA_NOCLDSTOP | SA_RESTART;
 	sigaction(SIGCHLD, &act, NULL);
 }
 
-void ProxyServer::catchSignal(int signo) {
+void ProxyServer::catchSignal(int signo)
+{
 	//printf("catch signal!!!!");
 	pid_t child_pid = 0;
 	/* すべての終了している子プロセスに対してwaitpid()を呼ぶ */
-	do {
+	do
+	{
 		int child_ret;
 		child_pid = waitpid(-1, &child_ret, WNOHANG);
 		/* すべての終了している子プロセスへwaitpid()を呼ぶと
@@ -935,7 +953,8 @@ void ProxyServer::catchSignal(int signo) {
 	} while (child_pid > 0);
 }
 
-int main(void) {
+int main(void)
+{
 	ProxyServer server;
 	server.init();
 	server.run();

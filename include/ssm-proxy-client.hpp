@@ -11,44 +11,35 @@
 /**
  * Dummy Class
  */
-class DSSMDummy {
+class DSSMDummy
+{
 };
 
-class PConnector {
+class PConnector
+{
 private:
 	struct sockaddr_in server;
 	struct sockaddr_in dserver;
-	int sock;
-	int dsock;                              // データ送信用
+	int sock;  //Proxyとの通信用ソケット
 	PROXY_open_mode openMode;
 
 	char *tbuf;
 
 	const char *streamName;
 	int streamId;
-	SSM_sid sid;							///< sid
-	void *mData;								///< データのポインタ
-	uint64_t mDataSize;						///< データ構造体のサイズ
-	void *mProperty;							///< プロパティのポインタ
-	uint64_t mPropertySize;					///< プロパティサイズ
+	SSM_sid sid;			///< sid
+	void *mData;			///< データのポインタ
+	uint64_t mDataSize;		///< データ構造体のサイズ
+	void *mProperty;		///< プロパティのポインタ
+	uint64_t mPropertySize; ///< プロパティサイズ
 	void *mFullData;
-	uint64_t mFullDataSize;
-	ssmtime *timecontrol;					///< for get real time
+	ssmtime *timecontrol; ///< for get real time
 	const char *ipaddr;
 	bool isVerbose;
 	bool isBlocking;
 	uint32_t thrdMsgLen;
 	uint32_t dssmMsgLen;
 
-	void writeInt(char **p, int v);
-	void writeLong(char **p, uint64_t v);
-	void writeDouble(char **p, double v);
-	void writeRawData(char **p, char *d, int len);
-
-	int readInt(char **p);
-	uint64_t readLong(char **p);
-	double readDouble(char **p);
-	void readRawData(char **p, char *d, int len);
 
 	void deserializeMessage(ssm_msg *msg, char *buf);
 
@@ -64,10 +55,21 @@ private:
 
 	bool sendData(const char *data, uint64_t size);
 	bool recvData(); // read data recv        
+protected:
+	int dsock; //DComとの通信用ソケット
+	uint64_t mFullDataSize;
+	void writeInt(char **p, int v);
+	void writeLong(char **p, uint64_t v);
+	void writeDouble(char **p, double v);
+	void writeRawData(char **p, char *d, int len);
 
+	int readInt(char **p);
+	uint64_t readLong(char **p);
+	double readDouble(char **p);
+	void readRawData(char **p, char *d, int len);
 public:
 	SSM_tid timeId; // データのTimeID (SSM_tid == int)
-	ssmTimeT time; // = 0;  // データのタイムスタンプ (ssmTimeT == double)
+	ssmTimeT time;	// = 0;  // データのタイムスタンプ (ssmTimeT == double)
 
 	PConnector();
 	~PConnector();
@@ -75,18 +77,18 @@ public:
 
 	void initPConnector();
 
-	bool connectToServer(const char* serverName, int port);
+	bool connectToServer(const char *serverName, int port);
 	bool sendMsgToServer(int cmd_type, ssm_msg *msg);
 	bool recvMsgFromServer(ssm_msg *msg, char *buf);
 
 	bool sendTMsg(thrd_msg *tmsg);
 	bool recvTMsg(thrd_msg *tmsg);
 
-	bool connectToDataServer(const char* serverName, int port);
-	bool UDPconnectToDataServer(const char* serverName, int port);
+	bool connectToDataServer(const char *serverName, int port);
+	bool UDPconnectToDataServer(const char *serverName, int port);
 
 	bool isOpen();
-	void* getData();
+	void *getData();
 
 	bool initRemote();
 	bool initSSM();
@@ -103,6 +105,8 @@ public:
 	bool getProperty();
 	void setOffset(ssmTimeT offset);
 	bool createDataCon();
+	bool UDPcreateDataCon();
+
 	bool release();
 	bool terminate();
 
@@ -125,19 +129,18 @@ public:
 	SSM_tid getTID_top();
 	SSM_tid getTID_bottom(SSM_sid sid);
 	SSM_tid getTID_bottom();
-	SSM_tid getTID( SSM_sid sid, ssmTimeT ytime );
+	SSM_tid getTID(SSM_sid sid, ssmTimeT ytime);
 
 	double timettof(struct timespec t); // 使わないかも
-	static ssmTimeT getRealTime(); // 現在時刻の取得
+	static ssmTimeT getRealTime();		// 現在時刻の取得
 
-	bool write(ssmTimeT time = gettimeSSM()); // write bulkdata with time
+	bool write(ssmTimeT time = gettimeSSM());					   // write bulkdata with time
 	bool read(SSM_tid tmid = -1, READ_packet_type type = TIME_ID); // read
-	bool readNew(); // 最新であり、前回読み込んだデータと違うデータのときに読み込む
-	bool readNext(int dt); // 前回読み込んだデータの次のデータを読み込む dt -> 移動量
-	bool readBack(int dt); // 前回のデータの1つ(以上)前のデータを読み込む dt -> 移動量
-	bool readLast(); // 最新データの読み込み
-	bool readTime(ssmTimeT t); // 時間指定, packet control
+	bool readNew();												   // 最新であり、前回読み込んだデータと違うデータのときに読み込む
+	bool readNext(int dt);										   // 前回読み込んだデータの次のデータを読み込む dt -> 移動量
+	bool readBack(int dt);										   // 前回のデータの1つ(以上)前のデータを読み込む dt -> 移動量
+	bool readLast();											   // 最新データの読み込み
+	bool readTime(ssmTimeT t);									   // 時間指定, packet control
 
 };
-
 #endif

@@ -2,7 +2,7 @@
 
 ## Makefileの更新からmake installまでの処理を行うスクリプト
 
-SSMSOURCE="$HOME/GitUDPDSSM"
+SSMSOURCE="$HOME/git/GitUDPDSSM"
 
 output_message() {
   printf "\n**************************\n"
@@ -43,7 +43,7 @@ fi
 
 
 
-sudo make CFLAGS="-Wno-error" CXXFLAGS="-Wno-error"
+sudo make CFLAGS="-Wno-error" CXXFLAGS="-Wno-error -Wno-c++11-extensions -std=c++11"
 
 ## makeの正常終了コードは0なので、それ以外のときはエラー処理
 answer=$?

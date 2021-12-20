@@ -39,7 +39,8 @@
 typedef enum {
 	WRITE_MODE = 1,  // 書き込み時
 	READ_MODE = 2,   // 読み出し時
-	PROXY_INIT = 3   // 初期
+	PROXY_INIT = 3,   // 初期
+	BUFFER_MODE = 4
 } PROXY_open_mode;
 
 /*
@@ -93,6 +94,7 @@ enum {
 
 	MC_OFFSET,                               // オフセットの設定
 	MC_CONNECTION,                           // バルク通信用経路の確立
+	MC_UDPCONNECTION,						 // UDPバルク通信用経路の確立
 
 	MC_FAIL = 30,
 	MC_RES = 31									///< コマンドに対する返信

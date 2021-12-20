@@ -42,20 +42,19 @@ int main() {
 	 * data型とproperty型は ./intSsm.h に定義
 	 * 指定しているIPはループバックアドレス(自分自身)
 	 */
-	PConnectorClient<intSsm_k, doubleProperty_p> con(SNAME_INT, 1, "192.168.11.28");
-	//PConnectorClient<intSsm_k, doubleProperty_p> con(SNAME_INT, 1);
+	//PConnectorClient<intSsm_k, doubleProperty_p> con(SNAME_INT, 1, "192.168.11.28");
+	PConnectorClient<intSsm_k, doubleProperty_p> con(SNAME_INT, 1);
 
 	// ssm関連の初期化
 	con.initSSM();
 
 	// 共有メモリにすでにある領域を開く
 	// 失敗するとfalseを返す
-	if (!con.open(SSM_READ)) {
+	if (!con.open(SSM_EXCLUSIVE)) {
 		// terminate()でssm-coordinatorとの接続を切断する
 		con.terminate();
 		return 1;
 	}
-
 	// 指定したプロパティを取得
 	con.getProperty();
 
@@ -64,16 +63,16 @@ int main() {
 
 	// データ通信路を開く
 	// これをしないとデータを取得できない
-	if (!con.createDataCon()) {
+	if (!con.UDPcreateDataCon()) {
 		con.terminate();
 		return 1;
 	}
+	con.readyRingBuf(16);
 
 	// 安全に終了できるように設定
 	setSigInt();
 	double ttime;
 	while (!gShutOff) {
-
 		// 最新のデータを取得
 		if (con.readNew()) {
 			printf("\n");

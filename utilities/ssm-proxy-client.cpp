@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
+
 #include <sys/time.h>
 
 #include <netinet/in.h>
@@ -19,7 +20,6 @@
 #include <chrono>
 using namespace std::chrono;
 #define FOR_DEBUG 0
-bool isTCP = true;
 
 PConnector::PConnector() :
 		tbuf(nullptr), time(0.0), ipaddr("127.0.0.1") {
@@ -337,16 +337,17 @@ bool PConnector::connectToDataServer(const char* serverName, int port) {
 }
 
 bool PConnector::UDPconnectToDataServer(const char* serverName, int port) {
+	fprintf(stderr, "Connecting to UDP Data server\n");
 	dsock = socket(AF_INET, SOCK_DGRAM, 0);
 	int flag = 1;
-
 	dserver.sin_family = AF_INET;
 	dserver.sin_port = htons(port);
 	dserver.sin_addr.s_addr = inet_addr(serverName);
 	if (connect(dsock, (struct sockaddr *) &dserver, sizeof(dserver))) {
-		fprintf(stderr, "connection error\n");
+		fprintf(stderr, "UDPconnectToDataServer:connection error\n");
 		return false;
 	}
+	send(dsock,0,0,0);
 	return true;
 }
 
@@ -488,6 +489,7 @@ bool PConnector::read(SSM_tid tmid, READ_packet_type type) {
 	memset((char*)&tmsg, 0, sizeof(thrd_msg));
 	tmsg.msg_type = type;
 	tmsg.tid = tmid;
+	//debug
 	auto start = high_resolution_clock::now();
 	if (!sendTMsg(&tmsg)) {
 		return false;
@@ -495,9 +497,10 @@ bool PConnector::read(SSM_tid tmid, READ_packet_type type) {
 	if (recvTMsg(&tmsg)) {
 		if (tmsg.res_type == TMC_RES) {
 			if (recvData()) {
+				//debug
 				auto stop = high_resolution_clock::now();
 				auto duration = duration_cast<microseconds>(stop - start);
-				    std::cout << "Time taken by function: " << duration.count() << " microseconds" << std::endl;
+				std::cout << "Time taken by function: " << duration.count() << " microseconds" << std::endl;
 				time = tmsg.time;
 				timeId = tmsg.tid;
 				return true;
@@ -664,6 +667,7 @@ bool PConnector::createRemoteSSM(const char *name, int stream_id,
 
 bool PConnector::open(SSM_open_mode openMode) {
 	ssm_msg msg;
+	std::cout<< "IN OPEN" << std::endl;
 	if (!mDataSize) {
 		std::cerr << "ssm-proxy-client: data buffer of" << streamName
 				<< "', id = " << streamId << " is not allocked." << std::endl;
@@ -674,7 +678,6 @@ bool PConnector::open(SSM_open_mode openMode) {
 	msg.suid = streamId;
 	strncpy(msg.name, streamName, SSM_SNAME_MAX);
 	msg.ssize = mDataSize;
-
 	// ssmOpen( streamName, streamId, openMode )の実装
 	// 内部のcommunicatorでMC_OPENを発行。
 	// PConnector::sendMsgToServer(int cmd_type, ssm_msg *msg)を実装
@@ -851,12 +854,25 @@ bool PConnector::createDataCon() {
 //            fprintf(stderr, "create data connection error\n");
 	}
 	free(msg_buf);
-	if(isTCP){
-		connectToDataServer(ipaddr,msg.suid);
+	connectToDataServer(ipaddr,msg.suid);
+	return true;
 	}
-	else{
-		UDPconnectToDataServer(ipaddr, msg.suid);
+
+bool PConnector::UDPcreateDataCon() {
+	ssm_msg msg;
+	msg.hsize = 0;
+	msg.ssize = 0;
+	msg.suid = 0;
+	msg.time = 0;
+	char *msg_buf = (char*) malloc(sizeof(ssm_msg));
+	if (!sendMsgToServer(MC_UDPCONNECTION, &msg)) {
+		fprintf(stderr, "error in createDataCon\n");
 	}
+	if (recvMsgFromServer(&msg, msg_buf)) {
+//fprintf(stderr, "create data connection error\n");
+	}
+	free(msg_buf);
+	UDPconnectToDataServer(ipaddr, msg.suid);
 	return true;
 }
 
