@@ -13,6 +13,7 @@
 #include <utility>
 #include <stdio.h>
 #include <mutex>
+#include <vector>
 
 namespace dssm
 {
@@ -44,9 +45,10 @@ namespace dssm
 		class RingBuffer
 		{
 		public:
-			// コンストラクタ　後で必ずバッファサイズ指定すること
+			// コンストラクタ　16でバッファサイズが指定される
 			inline RingBuffer()
 			{
+				setBufferSize(16);
 			}
 			// コンストラクタ(リングバッファのサイズを指定(2の冪乗が最適))
 			inline RingBuffer(unsigned int buffer_size_in)
@@ -57,10 +59,6 @@ namespace dssm
 			// デストラクタ
 			inline ~RingBuffer()
 			{
-				if (buffer_size_ > 0)
-				{
-					delete[] data_;
-				}
 			}
 			// リングバッファのサイズを指定(0より大の整数、2の冪乗が最適)
 			void setBufferSize(unsigned int buffer_size_in)
@@ -68,19 +66,15 @@ namespace dssm
 				if (buffer_size_in > 0)
 				{
 					// 排他　ミューテックスを取得することで排他処理が行われる
-					std::lock_guard<std::mutex> lock(mtx_);
-					// すでにメモリ上にリングバッファが確保されている場合は、一旦削除
-					if (buffer_size_ > 0)
-					{
-						delete data_;
-					}
+					std::lock_guard<std::recursive_mutex> lock(mtx_);
 					// リングバッファのサイズを保持
 					buffer_size_ = buffer_size_in;
 					// 内部変数の初期化
-					buf_tid = 0;
+					buf_tid = -1;
 					write_pointer_ = 0;
 					// メモリ上にリングバッファを確保 newを使ってるのでmallocの必要なし
-					data_ = new T[buffer_size_in];
+					data_.resize(buffer_size_in);
+					time_data_.resize(buffer_size_in);
 				}
 				else
 				{
@@ -91,8 +85,23 @@ namespace dssm
 			inline unsigned int getBufferSize()
 			{
 				// 排他
-				std::lock_guard<std::mutex> lock(mtx_);
+				std::lock_guard<std::recursive_mutex> lock(mtx_);
 				return buffer_size_;
+			}
+			//バッファ内の最古のTIDを返す
+			int returnLastTid()
+			{
+				if (buf_tid < 0)
+					return buf_tid;
+				int tid = buf_tid - buffer_size_ + 1 + 1;
+				if (tid < 0)
+					return 0;
+				return tid;
+			}
+			//バッファ内最新のTIDを返す
+			int returnTopTid()
+			{
+				return buf_tid;
 			}
 			// リングバッファにデータを書き込み
 			void writeBuffer(T data_in)
@@ -101,7 +110,7 @@ namespace dssm
 				if (buffer_size_ > 0)
 				{
 					// 排他
-					std::lock_guard<std::mutex> lock(mtx_);
+					std::lock_guard<std::recursive_mutex> lock(mtx_);
 					// データを書き込み
 					data_[write_pointer_] = data_in;
 					// 書き込みポインタを進める
@@ -112,46 +121,132 @@ namespace dssm
 				}
 				else
 				{
-					fprintf(stderr, "Error: [RingBuffer] Buffer is not allocated.\n");
+					fprintf(stderr, "DATA Error: [RingBuffer] Buffer is not allocated.\n");
 				}
 			}
-			void writeBuffer(T data_in, int TID)
+			void writeBuffer(T data_in, SSM_tid TID_in)
 			{
-				write_pointer_ = TID;
+				std::lock_guard<std::recursive_mutex> lock(mtx_);
+				write_pointer_ = TID_in;
+				write_pointer_ %= buffer_size_;
+				buf_tid = TID_in - 1;
+				writeBuffer(data_in);
 			}
+			void writeBuffer(T data_in, SSM_tid TID_in, ssmTimeT time_in)
+			{
+				std::lock_guard<std::recursive_mutex> lock(mtx_);
+				writeTime(TID_in, time_in);
+				writeBuffer(data_in, TID_in);
+			}
+			bool writeTime(SSM_tid TID_in, ssmTimeT time_in)
+			{
+				// リングバッファが確保されている場合のみ処理
+				if (buffer_size_ > 0)
+				{
+					// 排他
+					std::lock_guard<std::recursive_mutex> lock(mtx_);
+					// データを書き込み
+					time_data_[TID_in % buffer_size_] = time_in;
+					return true;
+				}
+				else
+				{
+					fprintf(stderr, "TIME Error: [RingBuffer] Buffer is not allocated.\n");
+					return false;
+				}
+			}
+
 			// リングバッファのデータを読み込み(buf_tid: 最新, buf_tid - size + 1 : 最古)
-			T readBuffer(unsigned int read_pointer_in)
+			T readBuffer(int read_pointer_in)
 			{
 				// 過去にデータが書き込まれていないデータのポインタにはアクセスさせない
-				if(read_pointer_in < 0) read_pointer_in = buf_tid;
+				if (read_pointer_in < 0)
+					read_pointer_in = buf_tid;
 				if (read_pointer_in <= buf_tid)
 				{
 					// 排他
-					std::lock_guard<std::mutex> lock(mtx_);
+					std::lock_guard<std::recursive_mutex> lock(mtx_);
 					// 現在の最新データのポインタはBUF_TID, 古いほど値が小さくなる(最小: BUF_TID-BUFFER_SIZE)
 					uint read_pointer = read_pointer_in % buffer_size_;
 					return data_[read_pointer];
 				}
 				else
 				{
-					fprintf(stderr, "Error: [RingBuffer] Read pointer is out of buffer. (%d / %d)\n",
+					fprintf(stderr, "READ Error1: [RingBuffer] Read pointer is out of buffer. (%d / %d)\n",
 							read_pointer_in, buf_tid);
 					T data;
 					return data;
 				}
 			}
+			T readBuffer(int read_pointer_in, SSM_tid &tid_in, ssmTimeT &time_in)
+			{
+				// 過去にデータが書き込まれていないデータのポインタにはアクセスさせない
+				if (read_pointer_in < 0)
+					read_pointer_in = buf_tid;
+				if (read_pointer_in <= buf_tid)
+				{
+					// 排他
+					uint read_pointer = read_pointer_in % buffer_size_;
+					tid_in = read_pointer;
+					time_in = readTime(read_pointer);
+					std::lock_guard<std::recursive_mutex> lock(mtx_);
+					// 現在の最新データのポインタはBUF_TID, 古いほど値が小さくなる(最小: BUF_TID-BUFFER_SIZE)
+					return data_[read_pointer];
+				}
+				else
+				{
+					fprintf(stderr, "READ Error2: [RingBuffer] Read pointer is out of buffer. (%d / %d)\n",
+							read_pointer_in, buf_tid);
+					T data;
+					return data;
+				}
+			}
+			ssmTimeT readTime(int read_pointer_in)
+			{
+				uint read_pointer = read_pointer_in % buffer_size_;
+				std::lock_guard<std::recursive_mutex> lock(mtx_);
+				return time_data_[read_pointer];
+			}
+
+			SSM_tid getTIDfromTime(ssmTimeT time_in)
+			{
+				SSM_tid tid;
+				//SSM_tid *tid_p;
+				std::lock_guard<std::recursive_mutex> lock(mtx_);
+				SSM_tid top = returnTopTid(), bottom = returnLastTid();
+				ssmTimeT top_time = readTime(top);
+				ssmTimeT cycle = top_time - readTime(top - 1); //cycleをTOPとその手前の差で計算する
+				if (time_in > top_time)
+					return top;
+				if (time_in < readTime(bottom))
+					return SSM_ERROR_PAST;
+				tid = top + (SSM_tid)((time_in - top_time) / cycle);
+				if (tid > top)
+					tid = top;
+				else if (tid < bottom)
+					tid = bottom;
+
+				while (readTime(tid) < time_in)
+					tid++;
+				while (readTime(tid) > time_in)
+					tid--;
+
+				return tid;
+			}
 
 		private:
 			// リングバッファのポインタ
-			T *data_;
+			std::vector<T> data_;
+			// タイムスタンプのポインタ
+			std::vector<ssmTimeT> time_data_;
 			// リングバッファのサイズ
 			unsigned int buffer_size_ = 0;
-			// TIDの初期位置
-			int buf_tid = -1;
+			// データの数と位置をカウントするためのTID
+			int buf_tid = 0;
 			// 書き込みポインタ(最新データのポインタ)
 			unsigned int write_pointer_ = 0;
 			// mutex(読み書き、バッファサイズ変更を排他)
-			std::mutex mtx_;
+			std::recursive_mutex mtx_;
 		};
 
 	} // namespace rbuffer

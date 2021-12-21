@@ -75,7 +75,8 @@ bool DataCommunicator::receiveData()
 {
 	int len = 0;
 	while ((len += recv(this->client.data_socket, &mData[len],
-						mFullDataSize - len, 0)) != mFullDataSize);
+						mFullDataSize - len, 0)) != mFullDataSize)
+		;
 	return true;
 }
 
@@ -150,21 +151,28 @@ void DataCommunicator::handleData()
 //とりあえず新しいデータを送り続けるモードだけで考えてみる
 void DataCommunicator::handleBuffer()
 {
+	std::cout << "Inside Handle Buffer" << std::endl;
 	SSM_tid tid = -1;
 	while (true)
 	{
 		//read TIME_ID
-		if (!pstream->read(tid))
+		if (pstream->isUpdate())
 		{
-			fprintf(stderr, "[%s] SSMApi::read error.\n", pstream->getStreamName());
+			if (!pstream->read(tid))
+			{
+				fprintf(stderr, "[%s] SSMApi::read error.\n", pstream->getStreamName());
+			}
+			char *p = mData;
+			proxy->writeInt(&p, pstream->timeId);
+			proxy->writeDouble(&p, pstream->time);
+			if (!sendBulkData(mData, mFullDataSize))
+			{
+				perror("send bulk Error");
+			}
+			std::cout << "Data sent" << std::endl;
+			//break;
 		}
-		mData[0] = pstream->timeId;
-		mData[sizeof(SSM_tid)] = pstream->time;
-		if (!sendBulkData(mData, mFullDataSize))
-		{
-			perror("send bulk Error");
-		}
-		break;
+		sleepSSM(0.5);
 	}
 }
 
@@ -567,7 +575,7 @@ void ProxyServer::readRawData(char **p, char *d, int len)
 		d[i] = **p;
 	}
 }
-
+//char **pにvを書き込む
 void ProxyServer::writeInt(char **p, int v)
 {
 	**p = (v >> 24) & 0xff;
@@ -579,7 +587,7 @@ void ProxyServer::writeInt(char **p, int v)
 	**p = (v >> 0) & 0xff;
 	(*p)++;
 }
-
+//char **pにvを書き込む
 void ProxyServer::writeLong(char **p, uint64_t v)
 {
 	**p = (v >> 56) & 0xff;

@@ -77,7 +77,7 @@ int main(int aArgc, char **aArgv) {
 	  // con.wdata->データ型 で書き込み
 	  	cnt+=1;
 		con.wdata->num = cnt;
-		printf("writing\n");
+		printf("wrote %d\n", cnt);
 		// 引数なしだと現在時刻を書き込み
 		con.write();
 
