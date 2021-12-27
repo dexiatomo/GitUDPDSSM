@@ -120,8 +120,7 @@ public:
 		std::cout << "Starting Ring Buffer" << std::endl;
 		ringBuf.setBufferSize(bufnum);
 		std::cout << "RBuf is ready" << std::endl;
-		std::thread readThread([this]
-							   { rBufReadTask(); });
+		std::thread readThread([this]{ rBufReadTask(); });
 		std::cout << "Created Thread." << std::endl;
 		readThread.detach();
 	}
