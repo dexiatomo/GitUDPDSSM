@@ -72,7 +72,7 @@ namespace dssm
 					// 内部変数の初期化
 					buf_tid = -1;
 					write_pointer_ = 0;
-					// メモリ上にリングバッファを確保 newを使ってるのでmallocの必要なし
+					// メモリ上にリングバッファを確保 Vectorのresizeを使う
 					data_.resize(buffer_size_in);
 					time_data_.resize(buffer_size_in);
 				}
@@ -88,20 +88,25 @@ namespace dssm
 				std::lock_guard<std::recursive_mutex> lock(mtx_);
 				return buffer_size_;
 			}
-			//バッファ内の最古のTIDを返す
-			int returnLastTid()
+
+			//========Write========
+			//時刻用リングバッファに書き込み
+			bool writeTime(SSM_tid TID_in, ssmTimeT time_in)
 			{
-				if (buf_tid < 0)
-					return buf_tid;
-				int tid = buf_tid - buffer_size_ + 1 + 1;
-				if (tid < 0)
-					return 0;
-				return tid;
-			}
-			//バッファ内最新のTIDを返す
-			int returnTopTid()
-			{
-				return buf_tid;
+				// リングバッファが確保されている場合のみ処理
+				if (buffer_size_ > 0)
+				{
+					// 排他
+					std::lock_guard<std::recursive_mutex> lock(mtx_);
+					// データを書き込み
+					time_data_[TID_in % buffer_size_] = time_in;
+					return true;
+				}
+				else
+				{
+					fprintf(stderr, "TIME Error: [RingBuffer] Buffer is not allocated.\n");
+					return false;
+				}
 			}
 			// リングバッファにデータを書き込み
 			void writeBuffer(T data_in)
@@ -124,6 +129,7 @@ namespace dssm
 					fprintf(stderr, "DATA Error: [RingBuffer] Buffer is not allocated.\n");
 				}
 			}
+			//　リングバッファにTIDを指定してデータを書き込み
 			void writeBuffer(T data_in, SSM_tid TID_in)
 			{
 				std::lock_guard<std::recursive_mutex> lock(mtx_);
@@ -132,75 +138,15 @@ namespace dssm
 				buf_tid = TID_in - 1;
 				writeBuffer(data_in);
 			}
+			//　リングバッファにTIDと時刻を指定してデータを書き込み
 			void writeBuffer(T data_in, SSM_tid TID_in, ssmTimeT time_in)
 			{
 				std::lock_guard<std::recursive_mutex> lock(mtx_);
 				writeTime(TID_in, time_in);
 				writeBuffer(data_in, TID_in);
 			}
-			bool writeTime(SSM_tid TID_in, ssmTimeT time_in)
-			{
-				// リングバッファが確保されている場合のみ処理
-				if (buffer_size_ > 0)
-				{
-					// 排他
-					std::lock_guard<std::recursive_mutex> lock(mtx_);
-					// データを書き込み
-					time_data_[TID_in % buffer_size_] = time_in;
-					return true;
-				}
-				else
-				{
-					fprintf(stderr, "TIME Error: [RingBuffer] Buffer is not allocated.\n");
-					return false;
-				}
-			}
 
-			// リングバッファのデータを読み込み(buf_tid: 最新, buf_tid - size + 1 : 最古)
-			T readBuffer(int read_pointer_in)
-			{
-				// 過去にデータが書き込まれていないデータのポインタにはアクセスさせない
-				if (read_pointer_in < 0)
-					read_pointer_in = buf_tid;
-				if (read_pointer_in <= buf_tid)
-				{
-					// 排他
-					std::lock_guard<std::recursive_mutex> lock(mtx_);
-					// 現在の最新データのポインタはBUF_TID, 古いほど値が小さくなる(最小: BUF_TID-BUFFER_SIZE)
-					uint read_pointer = read_pointer_in % buffer_size_;
-					return data_[read_pointer];
-				}
-				else
-				{
-					fprintf(stderr, "READ Error1: [RingBuffer] Read pointer is out of buffer. (%d / %d)\n",
-							read_pointer_in, buf_tid);
-					T data;
-					return data;
-				}
-			}
-			T readBuffer(int read_pointer_in, SSM_tid &tid_in, ssmTimeT &time_in)
-			{
-				// 過去にデータが書き込まれていないデータのポインタにはアクセスさせない
-				if (read_pointer_in < 0)
-					read_pointer_in = buf_tid;
-				if (read_pointer_in <= buf_tid)
-				{
-					// 排他
-					uint read_pointer = read_pointer_in % buffer_size_;
-					tid_in = read_pointer;
-					time_in = readTime(read_pointer);
-					std::lock_guard<std::recursive_mutex> lock(mtx_);
-					// 現在の最新データのポインタはBUF_TID, 古いほど値が小さくなる(最小: BUF_TID-BUFFER_SIZE)
-					return data_[read_pointer];
-				}
-				else
-				{
-					fprintf(stderr, "READ Error2: [RingBuffer] Read pointer is out of buffer. (%d / %d)\n",
-							read_pointer_in, buf_tid);
-					T data;
-					return data;
-				}
-			}
+			//時刻データをTID指定して読み込み
 			ssmTimeT readTime(int read_pointer_in)
 			{
 				uint read_pointer = read_pointer_in % buffer_size_;
@@ -208,30 +154,103 @@ namespace dssm
 				return time_data_[read_pointer];
 			}
 
-			SSM_tid getTIDfromTime(ssmTimeT time_in)
+			int getTID(ssmTimeT time_in, SSM_tid &tid_r)
 			{
 				SSM_tid tid;
-				//SSM_tid *tid_p;
 				std::lock_guard<std::recursive_mutex> lock(mtx_);
-				SSM_tid top = returnTopTid(), bottom = returnLastTid();
+				SSM_tid top = getTID_top(), bottom = getTID_bottom();
 				ssmTimeT top_time = readTime(top);
-				ssmTimeT cycle = top_time - readTime(top - 1); //cycleをTOPとその手前の差で計算する
+				ssmTimeT cycle = top_time - readTime(top - 1); // cycleをTOPとその手前の差で計算する
 				if (time_in > top_time)
-					return top;
+				{
+					tid_r = top;
+					return 1;
+				}
 				if (time_in < readTime(bottom))
+				{
+					tid_r = -2;
 					return SSM_ERROR_PAST;
+				}
+
 				tid = top + (SSM_tid)((time_in - top_time) / cycle);
 				if (tid > top)
 					tid = top;
 				else if (tid < bottom)
 					tid = bottom;
-
-				while (readTime(tid) < time_in)
+				ssmTimeT itime = readTime(tid);
+				while (itime < 0 || itime < time_in)
+				{
 					tid++;
-				while (readTime(tid) > time_in)
+					itime = readTime(tid);
+				}
+				while (itime < 0 || itime > time_in)
+				{
 					tid--;
+					itime = readTime(tid);
+				}
+				if (itime < 0)
+				{
+					tid_r = tid;
+					return -1;
+				}
+				else
+				{
+					tid_r = tid;
+					return 1;
+				}
+			}
 
+			SSM_tid getTID_top()
+			{
+				return buf_tid;
+			}
+			//このバッファ上での最古のTIDを返す
+			SSM_tid getTID_bottom()
+			{
+				// TIDが-1以下だと何もデータが書かれてないことを意味するので、-1を返す
+				if (buf_tid < 0)
+					return buf_tid;
+				//今のTIDからバッファサイズを引いて、書き込み用の1と-1のための1を足す
+				int tid = buf_tid - buffer_size_ + 1 + 1;
+				//最も古いTIDがマイナスになったので0を返す
+				if (tid < 0)
+					return 0;
+				//例外はなかったので最古のTIDを返す
 				return tid;
+			}
+
+			bool readNext()
+			{
+			}
+			// リングバッファのデータを読み込み(buf_tid: 最新, buf_tid - size + 1 + 1 : 最古)
+			int read(int read_pointer_in, T &data_in, SSM_tid &tid_in, ssmTimeT &time_in)
+			{
+				// 過去にデータが書き込まれていないデータのポインタにはアクセスさせない
+				if (read_pointer_in < 0)
+					read_pointer_in = buf_tid;
+				//範囲チェック
+				SSM_tid top = getTID_top();
+				SSM_tid bottom = getTID_bottom();
+				if (read_pointer_in < SSM_TID_SP)
+					return SSM_ERROR_NO_DATA;
+				if (read_pointer_in > top)
+					return SSM_ERROR_FUTURE;
+				if (read_pointer_in < bottom)
+					return SSM_ERROR_PAST;
+				// 排他
+				if (readTime(read_pointer_in) < 0)
+					return SSM_ERROR_NO_DATA;
+				std::lock_guard<std::recursive_mutex> lock(mtx_);
+				tid_in = read_pointer_in;
+				time_in = readTime(read_pointer_in);
+				uint read_pointer = read_pointer_in % buffer_size_;
+				// 現在の最新データのポインタはBUF_TID, 古いほど値が小さくなる(最小: BUF_TID-BUFFER_SIZE)
+				data_in = data_.at(read_pointer);
+				return 1;
+			}
+
+			bool readTime()
+			{
 			}
 
 		private:

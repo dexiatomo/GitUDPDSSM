@@ -70,8 +70,6 @@ int main()
 		return 1;
 	}
 	con.readyRingBuf(16);
-	std::cout << "IM DETACED" << std::endl;
-	sleepSSM(3);
 	// 安全に終了できるように設定
 	setSigInt();
 	double ttime;

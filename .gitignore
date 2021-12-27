@@ -40,13 +40,6 @@
 samples/Cpp_Sample/.libs/ssmReadSample
 samples/Cpp_Sample/.libs/ssmWriteSample
 src/.libs/ssm-coordinator
-utilities/.deps/read_proxy_test-dssm-utility.Po
-utilities/.deps/read_proxy_test-read_proxy_test.Po
-utilities/.deps/read_proxy_test-ssm-proxy-client.Po
-utilities/.deps/ssm_player-ssm-proxy-client.Po
-utilities/.deps/write_proxy_test-dssm-utility.Po
-utilities/.deps/write_proxy_test-ssm-proxy-client.Po
-utilities/.deps/write_proxy_test-write_proxy_test.Po
 utilities/.libs/lsssm
 utilities/.libs/read_proxy_test
 utilities/.libs/ssm-date
@@ -57,3 +50,4 @@ utilities/.libs/ssm-player
 utilities/.libs/ssm-proxy
 utilities/.libs/ssm-transporter
 utilities/.libs/write_proxy_test
+.vscode/settings.json

@@ -61,12 +61,12 @@ public:
 	//デストラクタ
 	~PConnectorClient()
 	{
-		//std::cout << __PRETTY_FUNCTION__ << std::endl;
+		// std::cout << __PRETTY_FUNCTION__ << std::endl;
 		free(fulldata);
 		free(wdata);
 	}
 
-	//TAKUTO
+	// TAKUTO
 	void rBufReadTask()
 	{
 		std::cout << "rBufReadTask start." << std::endl;
@@ -88,7 +88,8 @@ public:
 
 			case 0:
 				cnt++;
-				if(cnt > 10) loop = false;
+				if (cnt > 10)
+					loop = false;
 				std::cout << "no data, count = " << cnt << std::endl;
 				break;
 
@@ -98,9 +99,9 @@ public:
 				char *p = recvBuf.data();
 				SSM_tid tid = readInt(&p);
 				ssmTimeT time = readDouble(&p);
-				T toridata = *(reinterpret_cast<T*>(p));
+				T toridata = *(reinterpret_cast<T *>(p));
 				ringBuf.writeBuffer(toridata, tid, time);
-				//int homeTID = readInt(&recvBuf[0]);
+				// int homeTID = readInt(&recvBuf[0]);
 				/*
 				ssmRecvData.time = readDouble(&recvBuf[4]);
 				readRawData(&recvBuf[12], (char *)&ssmRecvData.ssmRawData, sizeof(T));
@@ -113,7 +114,66 @@ public:
 		}
 	}
 
+	void readyRingBuf(int bufnum)
+	{
+		//スレッドスタート
+		std::cout << "Starting Ring Buffer" << std::endl;
+		ringBuf.setBufferSize(bufnum);
+		std::cout << "RBuf is ready" << std::endl;
+		std::thread readThread([this]
+							   { rBufReadTask(); });
+		std::cout << "Created Thread." << std::endl;
+		readThread.detach();
+	}
+
 	/* read */
+	bool readBuf(SSM_tid tid_in = -1)
+	{
+		switch (ringBuf.read(tid_in, this->data, this->timeId, this->time))
+		{
+		case 1: // Success
+			break;
+		case SSM_ERROR_PAST:
+			return read(tid_in);
+			break;
+		case SSM_ERROR_NO_DATA:
+			return read(tid_in);
+			break;
+		}
+		return true;
+	}
+
+	/** @brief 最新であり、前回読み込んだデータと違うデータのときに読み込む
+	 * @return データを読み込めたときtrueを返す
+	 */
+	bool readNewBuf()
+	{
+		return (isOpen() ? readBuf(-1) : false);
+	}
+
+	/** @brief 前回読み込んだデータの次のデータを読み込む
+	 * @param[in] dt 進む量
+	 * @return 次データを読み込めたときtrueを返す
+	 *
+	 * @details 指定するデータがSSMの保存しているデータよりも古いとき、
+	 * 保存されている中で最も古いデータを読み込む
+	 */
+	bool readNextBuf(int dt = 1)
+	{
+		int tid_in = this->timeId + dt;
+		switch (ringBuf.read(tid_in, this->data, this->timeId, this->time))
+		{
+		case 1: // Success
+			break;
+		case SSM_ERROR_PAST:
+			return read(tid_in);
+			break;
+		case SSM_ERROR_NO_DATA:
+			return read(tid_in);
+			break;
+		}
+		return true;
+	}
 
 	// 前回のデータの1つ(以上)前のデータを読み込む
 	bool readBackBuf(int dt = 1)
@@ -127,58 +187,34 @@ public:
 		return readBuf(-1);
 	}
 
-	/** 
-	 * @brief 前回読み込んだデータの次のデータを読み込む
-	 * @param[in] dt 進む量
-	 * @return 次データを読み込めたときtrueを返す
-	 * 
-	 * @details 指定するデータがSSMの保存しているデータよりも古いとき、
-	 * 保存されている中で最も古いデータを読み込む
-	 */
-	bool readNextBuf(int dt = 1)
-	{
-		std::cout << "Not Done" << std::endl;
-		return false;
-	}
-	bool readNewBuf()
-	{
-		return (isOpen() ? readBuf(-1) : false);
-	}
-
 	bool readTimeBuf(ssmTimeT ytime)
 	{
 		SSM_tid tid;
 
-		/* テーブルからTIDを検索 */
+		/* 時刻テーブルからTIDを検索 */
 		if (ytime <= 0)
 		{ /* timeが負の時は最新データの読み込みとする */
 			tid = -1;
 		}
 		else
 		{
-			tid = ringBuf.getTIDfromTime(ytime);
-			// sprintf(err_msg,"tid %d",tid);
-			if (tid < 0)
-				return tid;
+			switch (ringBuf.getTID(ytime, tid))
+			{
+			case 1: // 成功
+				if (tid < 0)
+					return tid;
+				break;
+			case -1: // 失敗
+				return read(tid);
+				break;
+			case -2:
+				return readTime(ytime);
+				break;
+			default:
+				break;
+			}
+			return readBuf(tid);
 		}
-		return readBuf(tid);
-	}
-
-	bool readBuf(SSM_tid tid_in)
-	{
-		this->data = ringBuf.readBuffer(tid_in, this->timeId, this->time);
-		return true;
-	}
-
-	void readyRingBuf(int bufnum)
-	{
-		//スレッドスタート
-		std::cout << "Starting Ring Buffer" << std::endl;
-		ringBuf.setBufferSize(bufnum);
-		std::cout << "RBuf is ready" << std::endl;
-		std::thread readThread([this] { rBufReadTask(); });
-		std::cout << "Created Thread." << std::endl;
-		readThread.detach();
 	}
 };
 
