@@ -1,53 +1,6 @@
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
 .idea
 .setting
 
 *.a
 *.o
-/#*
-samples/Cpp_Sample/.libs/ssmReadSample
-samples/Cpp_Sample/.libs/ssmWriteSample
-src/.libs/ssm-coordinator
-utilities/.libs/lsssm
-utilities/.libs/read_proxy_test
-utilities/.libs/ssm-date
-utilities/.libs/ssm-graph
-utilities/.libs/ssm-logger
-utilities/.libs/ssm-monitor
-utilities/.libs/ssm-player
-utilities/.libs/ssm-proxy
-utilities/.libs/ssm-transporter
-utilities/.libs/write_proxy_test
-.vscode/settings.json
+
