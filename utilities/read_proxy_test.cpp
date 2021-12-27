@@ -42,8 +42,13 @@ int main() {
 	 * data型とproperty型は ./intSsm.h に定義
 	 * 指定しているIPはループバックアドレス(自分自身)
 	 */
-	PConnectorClient<intSsm_k, doubleProperty_p> con(SNAME_INT, 1, "192.168.1.169");
+<<<<<<< HEAD
+	PConnectorClient<intSsm_k, doubleProperty_p> con(SNAME_INT, 1, "192.168.0.146");
 	//PConnectorClient<intSsm_k, doubleProperty_p> con(SNAME_INT, 1);
+=======
+	//PConnectorClient<intSsm_k, doubleProperty_p> con(SNAME_INT, 1, "192.168.1.246");
+	PConnectorClient<intSsm_k, doubleProperty_p> con(SNAME_INT, 1, "192.168.0.185");
+>>>>>>> 8c8c6c5ecaad4d48fcef7b2a786947f0c88a530d
 
 	// ssm関連の初期化
 	con.initSSM();
@@ -76,16 +81,16 @@ int main() {
 
 		// 最新のデータを取得
 		if (con.readNew()) {
-			printf("\n");
-			printf("now -> %f\n", con.time);
+			//printf("\n");
+			//printf("now -> %f\n", con.time);
 			cout << "NUM = " << con.data.num << endl;
 		}
 
 		// 1秒前のデータを取得
 		if (con.readTime(con.time - 1)) {
-			printf("\n");
-			printf("before 1 sec -> %f\n", con.time);
-			cout << "old NUM = " << con.data.num << endl;
+			//printf("\n");
+			//printf("before 1 sec -> %f\n", con.time);
+			//cout << "old NUM = " << con.data.num << endl;
 		}
 
 		sleepSSM(1);
