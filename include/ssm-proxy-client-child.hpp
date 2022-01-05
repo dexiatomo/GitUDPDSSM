@@ -133,10 +133,12 @@ public:
 		case 1: // Success
 			break;
 		case SSM_ERROR_PAST:
-			return read(tid_in);
+			std::cout << "SSM_ERROR_PAST" << std::endl;
+			//return read(tid_in);
 			break;
 		case SSM_ERROR_NO_DATA:
-			return read(tid_in);
+			std::cout << "SSM_ERROR_NO_DATA" << std::endl;
+			//return read(tid_in);
 			break;
 		}
 		return true;
