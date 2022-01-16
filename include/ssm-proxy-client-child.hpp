@@ -80,21 +80,14 @@ public:
 		ssmData ssmRecvData;
 		while (loop)
 		{
-			switch (poll(&polldata, 1, 1000))
+			switch (poll(&polldata, 1, 10))
 			{
 			case -1:
 				perror("poll");
 				break;
-
 			case 0:
-				cnt++;
-				if (cnt > 10)
-					loop = false;
-				std::cout << "no data, count = " << cnt << std::endl;
 				break;
-
 			default:
-				cnt = 0;
 				ssize_t recvsize = recv(dsock, recvBuf.data(), mFullDataSize + 4, 0);
 				char *p = recvBuf.data();
 				SSM_tid tid = readInt(&p);
@@ -138,10 +131,12 @@ public:
 		case SSM_ERROR_PAST:
 			std::cout << "SSM_ERROR_PAST" << std::endl;
 			//return read(tid_in);
+			return false;
 			break;
 		case SSM_ERROR_NO_DATA:
 			std::cout << "SSM_ERROR_NO_DATA" << std::endl;
 			//return read(tid_in);
+			return false;
 			break;
 		}
 		return true;
@@ -209,27 +204,23 @@ public:
 			switch (ringBuf.getTID(ytime, tid))
 			{
 			case 1: // 成功
-				if (tid < 0)
-					return tid;
 				break;
 			case SSM_ERROR_FUTURE:
-				std::cout << "getTID ERROR FUTURE" << std::endl;
-				return tid;
 				//return read(tid);
 				break;
 			case SSM_ERROR_PAST:
 				//return readTime(ytime);
-				std::cout << "getTID ERROR FUTURE" << std::endl;
-				return tid;
+				std::cout << "getTID ERROR PAST" << std::endl;
+				return false;
 				break;
 			default:
 				tid = -1;
 				break;
 			}
-			return tid;
-			//return readBuf(tid);
 		}
+		return readBuf(tid);
 	}
+
 	SSM_tid getTID_topBuf(SSM_sid sid){
 		return ringBuf.getTID_top();
 	}

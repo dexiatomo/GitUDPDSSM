@@ -153,7 +153,9 @@ void DataCommunicator::handleBuffer()
 {
 	std::cout << "Inside Handle Buffer" << std::endl;
 	SSM_tid tid = -1;
-	while (true)
+	int count;
+	bool loop = true;
+	while (loop)
 	{
 		//read TIME_ID
 		if (pstream->isUpdate())
@@ -168,11 +170,11 @@ void DataCommunicator::handleBuffer()
 			if (!sendBulkData(mData, mFullDataSize))
 			{
 				perror("send bulk Error");
+				count ++;
+				if(count > 10){loop = false;}
 			}
-			std::cout << "Data sent" << std::endl;
-			//break;
 		}
-		sleepSSM(0.5);
+		else{usleepSSM(2000);}
 	}
 }
 
