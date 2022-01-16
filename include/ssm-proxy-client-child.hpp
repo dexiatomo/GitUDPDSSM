@@ -132,6 +132,9 @@ public:
 		{
 		case 1: // Success
 			break;
+		case SSM_ERROR_FUTURE:
+			std::cout << "SSM_ERROR_FUTURE" << std::endl;
+			break;
 		case SSM_ERROR_PAST:
 			std::cout << "SSM_ERROR_PAST" << std::endl;
 			//return read(tid_in);
@@ -166,7 +169,11 @@ public:
 		{
 		case 1: // Success
 			break;
+		case SSM_ERROR_FUTURE:
+			std::cout << "BUFFER ERROR FUTURE" << std::endl;
+			break;
 		case SSM_ERROR_PAST:
+			std::cout << "BUFFER ERROR PAST" << std::endl;
 			return read(tid_in);
 			break;
 		case SSM_ERROR_NO_DATA:
@@ -205,16 +212,22 @@ public:
 				if (tid < 0)
 					return tid;
 				break;
-			case -1: // 失敗
-				return read(tid);
+			case SSM_ERROR_FUTURE:
+				std::cout << "getTID ERROR FUTURE" << std::endl;
+				return tid;
+				//return read(tid);
 				break;
-			case -2:
-				return readTime(ytime);
+			case SSM_ERROR_PAST:
+				//return readTime(ytime);
+				std::cout << "getTID ERROR FUTURE" << std::endl;
+				return tid;
 				break;
 			default:
+				tid = -1;
 				break;
 			}
-			return readBuf(tid);
+			return tid;
+			//return readBuf(tid);
 		}
 	}
 };

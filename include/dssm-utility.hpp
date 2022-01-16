@@ -160,18 +160,17 @@ namespace dssm
 				std::lock_guard<std::recursive_mutex> lock(mtx_);
 				SSM_tid top = getTID_top(), bottom = getTID_bottom();
 				ssmTimeT top_time = readTime(top);
-				ssmTimeT cycle = top_time - readTime(top - 1); // cycleをTOPとその手前の差で計算する
 				if (time_in > top_time)
 				{
 					tid_r = top;
-					return 1;
+					return SSM_ERROR_FUTURE;
 				}
 				if (time_in < readTime(bottom))
 				{
 					tid_r = -2;
 					return SSM_ERROR_PAST;
 				}
-
+				ssmTimeT cycle = top_time - readTime(top - 1); // cycleをTOPとその手前の差で計算する
 				tid = top + (SSM_tid)((time_in - top_time) / cycle);
 				if (tid > top)
 					tid = top;

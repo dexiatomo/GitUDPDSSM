@@ -21,7 +21,7 @@ private:
 	struct sockaddr_in server;
 	struct sockaddr_in dserver;
 	int sock;  //Proxyとの通信用ソケット
-	PROXY_open_mode openMode;
+	SSM_open_mode openMode;
 
 	char *tbuf;
 

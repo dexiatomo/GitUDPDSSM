@@ -53,7 +53,7 @@ void PConnector::initPConnector() {
 	mPropertySize = 0;
 	streamName = "";
 	mFullDataSize = 0;
-	openMode = PROXY_INIT;
+	openMode = SSM_READ;
 	timeId = -1;
 	timecontrol = NULL;
 	isVerbose = false;
@@ -660,6 +660,7 @@ bool PConnector::createRemoteSSM(const char *name, int stream_id,
 }
 
 bool PConnector::open(SSM_open_mode openMode) {
+	this->openMode = openMode;
 	ssm_msg msg;
 	std::cout<< "IN OPEN" << std::endl;
 	if (!mDataSize) {
@@ -863,8 +864,9 @@ bool PConnector::UDPcreateDataCon() {
 		fprintf(stderr, "error in createDataCon\n");
 	}
 	if (recvMsgFromServer(&msg, msg_buf)) {
-//fprintf(stderr, "create data connection error\n");
+	//fprintf(stderr, "create data connection error\n");
 	}
+
 	free(msg_buf);
 	UDPconnectToDataServer(ipaddr, msg.suid);
 	return true;
