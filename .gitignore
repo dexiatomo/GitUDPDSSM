@@ -61,3 +61,8 @@ utilities/.libs/ssm-player
 utilities/.libs/ssm-proxy
 utilities/.libs/ssm-transporter
 utilities/.libs/write_proxy_test
+autom4te.cache/output.1
+autom4te.cache/traces.1
+src/.libs/libssm.so
+src/.libs/libssm.so.0
+src/.libs/libssm.so.0.5.1

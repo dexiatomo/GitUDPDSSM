@@ -963,6 +963,7 @@ void ProxyServer::catchSignal(int signo)
 
 int main(void)
 {
+	std::cout <<"This is UDPDSSM-Proxy" << std::endl;
 	ProxyServer server;
 	server.init();
 	server.run();
