@@ -230,6 +230,9 @@ public:
 			//return readBuf(tid);
 		}
 	}
+	SSM_tid getTID_topBuf(SSM_sid sid){
+		return ringBuf.getTID_top();
+	}
 };
 
 #endif
