@@ -66,7 +66,6 @@ namespace dssm
 				if (buffer_size_in > 0)
 				{
 					// 排他　ミューテックスを取得することで排他処理が行われる
-					std::lock_guard<std::recursive_mutex> lock(mtx_);
 					// リングバッファのサイズを保持
 					buffer_size_ = buffer_size_in;
 					// 内部変数の初期化
@@ -85,7 +84,6 @@ namespace dssm
 			inline unsigned int getBufferSize()
 			{
 				// 排他
-				std::lock_guard<std::recursive_mutex> lock(mtx_);
 				return buffer_size_;
 			}
 
@@ -96,9 +94,6 @@ namespace dssm
 				// リングバッファが確保されている場合のみ処理
 				if (buffer_size_ > 0)
 				{
-					// 排他
-					std::lock_guard<std::recursive_mutex> lock(mtx_);
-					// データを書き込み
 					time_data_[TID_in % buffer_size_] = time_in;
 					return true;
 				}
@@ -115,7 +110,6 @@ namespace dssm
 				if (buffer_size_ > 0)
 				{
 					// 排他
-					std::lock_guard<std::recursive_mutex> lock(mtx_);
 					// データを書き込み
 					data_[write_pointer_] = data_in;
 					// 書き込みポインタを進める
@@ -132,7 +126,6 @@ namespace dssm
 			//　リングバッファにTIDを指定してデータを書き込み
 			void writeBuffer(T data_in, SSM_tid TID_in)
 			{
-				std::lock_guard<std::recursive_mutex> lock(mtx_);
 				write_pointer_ = TID_in;
 				write_pointer_ %= buffer_size_;
 				buf_tid = TID_in - 1;
@@ -141,7 +134,6 @@ namespace dssm
 			//　リングバッファにTIDと時刻を指定してデータを書き込み
 			void writeBuffer(T data_in, SSM_tid TID_in, ssmTimeT time_in)
 			{
-				std::lock_guard<std::recursive_mutex> lock(mtx_);
 				writeTime(TID_in, time_in);
 				writeBuffer(data_in, TID_in);
 			}
@@ -150,15 +142,13 @@ namespace dssm
 			ssmTimeT readTime(int read_pointer_in)
 			{
 				uint read_pointer = read_pointer_in % buffer_size_;
-				std::lock_guard<std::recursive_mutex> lock(mtx_);
 				return time_data_[read_pointer];
 			}
 
 			int getTID(ssmTimeT time_in, SSM_tid &tid_r)
 			{
 				SSM_tid tid;
-				std::lock_guard<std::recursive_mutex> lock(mtx_);
-				SSM_tid top = getTID_top(), bottom = getTID_bottom();
+				SSM_tid top = getTID_top();
 				ssmTimeT top_time = readTime(top);
 				if (time_in > top_time)
 				{
@@ -170,6 +160,7 @@ namespace dssm
 					tid_r = -2;
 					return SSM_ERROR_PAST;
 				}
+				ssmTimeT bottom = getTID_bottom();
 				ssmTimeT cycle = top_time - readTime(top - 1); // cycleをTOPとその手前の差で計算する
 				tid = top + (SSM_tid)((time_in - top_time) / cycle);
 				if (tid > top)
@@ -237,11 +228,10 @@ namespace dssm
 				if (read_pointer_in < bottom)
 					return SSM_ERROR_PAST;
 				// 排他
-				if (readTime(read_pointer_in) < 0)
-					return SSM_ERROR_NO_DATA;
-				std::lock_guard<std::recursive_mutex> lock(mtx_);
-				tid_in = read_pointer_in;
 				time_in = readTime(read_pointer_in);
+				if (time_in < 0)
+					return SSM_ERROR_NO_DATA;
+				tid_in = read_pointer_in;
 				uint read_pointer = read_pointer_in % buffer_size_;
 				// 現在の最新データのポインタはBUF_TID, 古いほど値が小さくなる(最小: BUF_TID-BUFFER_SIZE)
 				data_in = data_.at(read_pointer);
@@ -263,8 +253,6 @@ namespace dssm
 			int buf_tid = 0;
 			// 書き込みポインタ(最新データのポインタ)
 			unsigned int write_pointer_ = 0;
-			// mutex(読み書き、バッファサイズ変更を排他)
-			std::recursive_mutex mtx_;
 		};
 
 	} // namespace rbuffer

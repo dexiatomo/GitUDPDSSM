@@ -153,7 +153,7 @@ void DataCommunicator::handleBuffer()
 {
 	std::cout << "Inside Handle Buffer" << std::endl;
 	SSM_tid tid = -1;
-	int count;
+	int count = 0;
 	bool loop = true;
 	while (loop)
 	{
@@ -174,7 +174,7 @@ void DataCommunicator::handleBuffer()
 				if(count > 10){loop = false;}
 			}
 		}
-		else{usleepSSM(2000);}
+		else{usleepSSM(1000);}
 	}
 }
 

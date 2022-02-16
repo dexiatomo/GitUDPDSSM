@@ -69,7 +69,6 @@ public:
 	// TAKUTO
 	void rBufReadTask()
 	{
-		std::cout << "rBufReadTask start." << std::endl;
 		struct pollfd polldata;
 		bool loop = true;
 		int cnt = 0;
@@ -88,7 +87,7 @@ public:
 			case 0:
 				break;
 			default:
-				ssize_t recvsize = recv(dsock, recvBuf.data(), mFullDataSize + 4, 0);
+				recv(dsock, recvBuf.data(), mFullDataSize + 4, 0);
 				char *p = recvBuf.data();
 				SSM_tid tid = readInt(&p);
 				ssmTimeT time = readDouble(&p);
@@ -206,6 +205,7 @@ public:
 			case 1: // 成功
 				break;
 			case SSM_ERROR_FUTURE:
+				return readBuf(-1);
 				//return read(tid);
 				break;
 			case SSM_ERROR_PAST:
