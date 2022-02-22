@@ -155,12 +155,12 @@ namespace dssm
 					tid_r = top;
 					return SSM_ERROR_FUTURE;
 				}
+				ssmTimeT bottom = getTID_bottom();
 				if (time_in < readTime(bottom))
 				{
 					tid_r = -2;
 					return SSM_ERROR_PAST;
 				}
-				ssmTimeT bottom = getTID_bottom();
 				ssmTimeT cycle = top_time - readTime(top - 1); // cycleをTOPとその手前の差で計算する
 				tid = top + (SSM_tid)((time_in - top_time) / cycle);
 				if (tid > top)
