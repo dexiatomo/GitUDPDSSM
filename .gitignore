@@ -69,3 +69,10 @@ src/.libs/libssm.so.0.5.1
 Makefile.in
 autom4te.cache/output.2
 autom4te.cache/traces.2
+aclocal.m4
+configure
+configure~
+autom4te.cache/output.3
+autom4te.cache/traces.3
+include/config.h.in
+include/config.h.in~
